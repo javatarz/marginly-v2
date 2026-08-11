@@ -1,0 +1,79 @@
+# Marginly — Problem Statement
+
+A review platform where an Author shares a Book with invited Reviewers, and those
+Reviewers discuss it in place by commenting on any Block of it.
+
+Vocabulary is defined in [`CONTEXT.md`](./CONTEXT.md). Decisions are recorded in
+[`docs/adr/`](./docs/adr/). Open questions are tracked on
+[the map](https://github.com/javatarz/marginly-v2/issues/1).
+
+## Content
+
+A Book is written and edited entirely outside Marginly. Nothing is editable in
+the platform — only Threads and Comments are added.
+
+An Upload sends one HTML file plus its CSS and images, and creates a new
+immutable Version. Every Upload is a new Version; a Book keeps all of them, and
+all of them stay readable.
+
+A Version renders as a single page. The CSS and images are separate files, but
+the whole Version is one HTML page — no pagination, no chapter splitting.
+
+## Threads
+
+A Thread is a discussion rooted on one Block. A whole Block is selected to
+comment on it — a Thread never anchors to a phrase inside a Block.
+
+- A Thread can be started only on a Book's **latest** Version.
+- While a Thread is Open it is carried into each new Version, staying beside its
+  Block.
+- Comments can be added only on the latest Version, by the Author or by any
+  Reviewer with access.
+- On an earlier Version a Thread is **Frozen**: read-only, showing exactly the
+  Comments it held and the state it was in when the next Version arrived, and
+  nothing of what followed. If v1 held three Comments when v2 was Uploaded, v1
+  shows those three forever.
+- Only the Author Resolves a Thread, optionally leaving a final note as a
+  Comment. Resolving ends the carry — a Thread Resolved while v5 was latest is
+  visible on v2–v5 and absent from v6.
+- A Thread is never reopened. Raising the point again means a new, separate
+  Thread.
+
+## Author
+
+1. Sign in with an email magic link.
+2. See a dashboard of their own Books and each Book's Versions.
+3. Upload a new Version of a Book, and hold several Books at once.
+4. Read any Version of any Book they own — and only Books they own.
+5. Read Threads beside the text, each tied to its Block, with every commenter's
+   role shown.
+6. Comment on any Thread, marked as the Author of the Book.
+7. Resolve a Thread.
+8. Grant a Reviewer access to a Book.
+
+## Reviewer
+
+1. Sign in with an email magic link.
+2. See a dashboard of the Books they have been granted and each Book's Versions.
+3. Read any Version of a granted Book, including Versions Uploaded before the
+   grant.
+4. Start a Thread on a Block of the latest Version.
+5. Comment on any Thread on the latest Version, including Threads started by
+   other Reviewers or by the Author.
+6. Read Threads beside the text, with every commenter's role shown.
+7. Cannot Resolve a Thread.
+
+## Access
+
+Every Author and Reviewer account is precreated by an operator. There is no
+signup flow, and sign-in is an email magic link.
+
+Granting a Reviewer access to a Book gives an account that already exists
+permission to read it. No invitation email is sent, so a Reviewer discovers a
+Book — and any reply to their Comments — from their dashboard. See ADR-0001.
+
+## Out of scope
+
+Notifications of any kind beyond the magic-link email, self-serve signup, search,
+analytics, download prevention, editing a Book in the platform, reopening a
+Resolved Thread, and Reviewer-initiated resolution.
