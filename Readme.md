@@ -21,12 +21,17 @@ the whole Version is one HTML page — no pagination, no chapter splitting.
 
 ## Threads
 
-A Thread is a discussion rooted on one Block. A whole Block is selected to
-comment on it — a Thread never anchors to a phrase inside a Block.
+A Thread is a discussion rooted on one Block — the passage of text a Reviewer
+selected to start it. A selection may run across paragraphs and may overlap
+another Thread's, but it never covers an image or a table.
 
 - A Thread can be started only on a Book's **latest** Version.
 - While a Thread is Open it is carried into each new Version, staying beside its
-  Block.
+  Block. An Upload finds that Block again by exact text match; where the text has
+  been edited or cut, the Thread becomes **Unlinked** — still Open and still
+  commentable, but beside no text until someone links it again. See ADR-0004.
+- The Author and any Reviewer with access can link an Unlinked Thread, move a
+  linked Thread to different text, or unlink one, on the latest Version only.
 - Comments can be added only on the latest Version, by the Author or by any
   Reviewer with access.
 - On an earlier Version a Thread is **Frozen**: read-only, showing exactly the
@@ -49,7 +54,8 @@ comment on it — a Thread never anchors to a phrase inside a Block.
    role shown.
 6. Comment on any Thread, marked as the Author of the Book.
 7. Resolve a Thread.
-8. Grant a Reviewer access to a Book.
+8. Link, move, or unlink a Thread on the latest Version.
+9. Grant a Reviewer access to a Book.
 
 ## Reviewer
 
@@ -61,7 +67,9 @@ comment on it — a Thread never anchors to a phrase inside a Block.
 5. Comment on any Thread on the latest Version, including Threads started by
    other Reviewers or by the Author.
 6. Read Threads beside the text, with every commenter's role shown.
-7. Cannot Resolve a Thread.
+7. Link, move, or unlink a Thread on the latest Version, and place an Unlinked
+   Thread anywhere on the page.
+8. Cannot Resolve a Thread.
 
 ## Access
 

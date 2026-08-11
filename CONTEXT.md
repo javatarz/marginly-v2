@@ -21,15 +21,6 @@ The Author's act of sending a Book's HTML to the platform. The only way content
 enters Marginly, and each one creates a Version.
 _Avoid_: publish, push, sync, import
 
-**Block**:
-The unit of rendered content a Thread attaches to.
-_Avoid_: paragraph, node, element, chunk
-
-**Chapter**:
-A division of a Book's content, holding Blocks. Every Chapter of a Version
-renders on the same page.
-_Avoid_: section, part
-
 ### People
 
 **Author**:
@@ -42,6 +33,12 @@ the text.
 _Avoid_: reader, beta reader, beta user, commenter
 
 ### Feedback
+
+**Block**:
+The passage of a Version's text a Thread is rooted on, fixed by the Reviewer's
+selection when they start it. Nothing in the uploaded file marks it out, and a
+Reviewer never sees the file's structure.
+_Avoid_: paragraph, node, element, chunk, selection, range, highlight
 
 **Thread**:
 A discussion rooted on one Block. Started only on a Book's latest Version.
@@ -57,6 +54,11 @@ A Thread's lifecycle state. Only the Author Resolves, and a Resolved Thread is
 never reopened — raising the point again means a new Thread. An Open Thread is
 carried into each new Version; Resolving it ends that carry.
 _Avoid_: closed, done, archived, addressed
+
+**Linked** / **Unlinked**:
+Whether a Thread currently has a Block. Orthogonal to Open and Resolved — an
+Open Thread may be either — and only an Unlinked Thread is placed by hand.
+_Avoid_: orphaned, detached, dangling, floating, lost
 
 **Frozen**:
 A Thread as it appears on a Version that is no longer the latest: exactly the
