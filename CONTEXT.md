@@ -17,8 +17,9 @@ An immutable snapshot of a Book's content, created by an Upload.
 _Avoid_: edition, revision, release
 
 **Upload**:
-The Author's act of sending a Book's HTML to the platform. The only way content
-enters Marginly, and each one creates a Version.
+The Author's act of sending a Book's HTML to the platform, as a zip holding one
+`index.html` with its CSS and images. The only way content enters Marginly, and
+each one creates a Version unless its content is identical to the latest.
 _Avoid_: publish, push, sync, import
 
 ### People
