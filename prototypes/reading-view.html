@@ -730,7 +730,12 @@ function unlinkThread(t) {
 }
 function moveUnlinked(t, frac) {
   const row = rows[state.version][t.id];
-  if (row && row.status === "unlinked") row.thread_position.frac = Math.max(0, Math.min(1, frac));
+  if (row && row.status === "unlinked") {
+    row.thread_position.frac = Math.max(0, Math.min(1, frac));
+    /* A hand placement is exempt from collision nudging below. Where a reader
+       put it wins over keeping the rail tidy. */
+    row.placedByHand = true;
+  }
 }
 
 /* ============================================================
@@ -793,8 +798,12 @@ function chromeEl(versionControlEl) {
   const bar = el("div", "chrome");
   bar.append(el("div", "book-title", BOOK_TITLE));
   if (isFrozen(state.version)) {
+    /* No count of Versions: an earlier Version is a point-in-time view and
+       gives no indication of what followed (ADR-0003). The switcher lists the
+       Versions, because navigating is the reader's own act — but the reading
+       surface itself never counts them for you. */
     bar.append(el("div", "frozen-note",
-      "Version " + state.version + " of " + LATEST + ", uploaded " + VERSIONS[state.version - 1].uploaded + ". Read-only."));
+      "Version " + state.version + ", uploaded " + VERSIONS[state.version - 1].uploaded + ". Read-only."));
   }
   if (versionControlEl) bar.append(versionControlEl);
   const who = el("div", "who");
@@ -927,9 +936,9 @@ function renderA() {
     for (const e of entries) {
       const card = cardA(e.t, e.row, index, book, rail, tgt => { hoverTarget = tgt; draw(); });
       rail.append(card);
-      const top = Math.max(e.y, cursor);
+      const top = e.row.placedByHand ? e.y : Math.max(e.y, cursor);
       card.style.top = top + "px";
-      cursor = top + card.offsetHeight + 8;
+      cursor = Math.max(cursor, top + card.offsetHeight + 8);
     }
   };
 
