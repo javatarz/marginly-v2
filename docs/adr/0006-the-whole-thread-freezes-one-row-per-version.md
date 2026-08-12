@@ -81,14 +81,14 @@ the redundancy is deliberate and costs a line.
 when Linked, because a Linked Thread is drawn beside the text it is linked to and
 needs no placement of its own.
 
-## No Block, anchor or placement table
+## No Highlight, anchor or placement table
 
-`CONTEXT.md` gives this area three words — Block, Linked, Unlinked — and the model
-uses no others. A Block is the passage a Thread is rooted on; in the schema that is
+`CONTEXT.md` gives this area three words — Highlight, Linked, Unlinked — and the model
+uses no others. A Highlight is the passage a Thread is rooted on; in the schema that is
 the `text_position` of a Linked row, not a table. Earlier drafts of this decision
 introduced an `anchors` table, from a word appearing once in ADR-0004's prose, and a
-`placements` table beside a `blocks` one. Both were rejected: a `blocks` table would
-have had to hold rows for Threads that have no Block, which contradicts the glossary,
+`placements` table beside a `highlights` one. Both were rejected: a `highlights` table
+would have had to hold rows for Threads that have no Highlight, contradicting the glossary,
 and splitting the row in two produced a mutual-exclusion invariant spanning two
 tables to describe one thing.
 

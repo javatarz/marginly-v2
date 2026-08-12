@@ -35,14 +35,16 @@ _Avoid_: reader, beta reader, beta user, commenter
 
 ### Feedback
 
-**Block**:
+**Highlight**:
 The passage of a Version's text a Thread is rooted on, fixed by the Reviewer's
-selection when they start it. Nothing in the uploaded file marks it out, and a
-Reviewer never sees the file's structure.
-_Avoid_: paragraph, node, element, chunk, selection, range, highlight
+selection when they start it, and shaded on the page so a reader can see the
+Thread is there. Nothing in the uploaded file marks it out, and a Reviewer never
+sees the file's structure. Say **text highlight** where the short form could be
+read as something else.
+_Avoid_: block, paragraph, node, element, chunk, selection, range
 
 **Thread**:
-A discussion rooted on one Block. Started only on a Book's latest Version.
+A discussion rooted on one Highlight. Started only on a Book's latest Version.
 _Avoid_: annotation, note, review, comment
 
 **Comment**:
@@ -57,7 +59,7 @@ carried into each new Version; Resolving it ends that carry.
 _Avoid_: closed, done, archived, addressed
 
 **Linked** / **Unlinked**:
-Whether a Thread currently has a Block. Orthogonal to Open and Resolved — an
+Whether a Thread currently has a Highlight. Orthogonal to Open and Resolved — an
 Open Thread may be either — and only an Unlinked Thread is placed by hand.
 _Avoid_: orphaned, detached, dangling, floating, lost
 

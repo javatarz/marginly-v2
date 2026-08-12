@@ -9,8 +9,8 @@ occurrence — or two indistinguishable candidates — leaves the Thread
 **Unlinked**: still Open, still commentable, placed wherever a Reviewer drags it,
 and linkable by hand.
 
-Nothing in the uploaded HTML determines a Block. A Reviewer drags across text and
-that selection *is* the Block, so neither the file's structure nor any ids it
+Nothing in the uploaded HTML determines a Highlight. A Reviewer drags across text
+and that selection *is* the Highlight, so neither the file's structure nor any ids it
 carries are ever identity.
 
 ## Considered Options
@@ -22,9 +22,9 @@ stable. It amounts to requiring the Author to run a bespoke pipeline that mints
 and preserves per-paragraph ids across offline edits forever, or the carry breaks
 in silence.
 
-**Anchoring to a whole structural Block** — a paragraph, a heading, a list item —
+**Anchoring to a whole structural element** — a paragraph, a heading, a list item —
 was the earlier reading, and it is why `Readme.md` first said a Thread never
-anchors to a phrase inside a Block. It was rejected because a Reviewer sees no
+anchors to a phrase inside such an element. It was rejected because a Reviewer sees no
 markup and should be able to comment on a sentence. It also turns out to be
 *worse* on the outcomes that looked hardest: with a text range, a paragraph the
 Author split or merged still contains the selected passage verbatim, so split and
