@@ -1,0 +1,1381 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PROTOTYPE — Marginly reading view</title>
+
+<!--
+  THROWAWAY PROTOTYPE. Not production code, not a scaffold for one.
+
+  Three variants of the reading view, switchable with ?variant=A|B|C, the arrow
+  keys, or the floating bar at the bottom. Answers issue #8 on the map (#1).
+
+  Variants disagree structurally about where a Thread lives:
+    A  Margin rail        — Threads as cards in a right-hand rail, aligned to their text.
+    B  Inline expansion   — no rail; Threads open in the flow of the text itself.
+    C  Focus overlay      — text fills the viewport; one Thread at a time in a popover.
+
+  The substrate is shared on purpose, because it is not layout — it is the thing
+  the ADRs already settled, and all three variants have to obey it:
+    - a Version's text is extracted once (ADR-0005), figures and tables excluded
+    - a Thread anchors to exact whitespace-normalised text (ADR-0004)
+    - matching runs per Version; a miss means Unlinked (ADR-0004)
+    - one row per Thread per Version, with status + text_position/thread_position (ADR-0006)
+    - Comments carry the Version they were written on; reading vN shows version <= N (ADR-0006)
+    - every Version but the latest is Frozen (ADR-0003)
+
+  Press "s" to see the live thread_versions rows for the Version on screen.
+
+  Nothing persists. Everything is in memory.
+-->
+
+<style>
+  :root {
+    --ink: #1b1a17;
+    --ink-soft: #55524c;
+    --ink-faint: #8b8781;
+    --paper: #fbfaf7;
+    --chrome: #ffffff;
+    --line: #e2ded6;
+    --line-strong: #cfc9be;
+    --accent: #2f5d50;
+    --accent-soft: #dcebe5;
+    --hl: rgba(206, 176, 62, .30);
+    --hl-active: rgba(47, 93, 80, .28);
+    --hl-active-edge: #2f5d50;
+    --unlinked: #a8603a;
+    --author: #2f5d50;
+    --reviewer: #4a4f7a;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+
+  /* ---------- chrome: the one thing all variants share ---------- */
+
+  .chrome {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: .65rem 1rem;
+    background: var(--chrome);
+    border-bottom: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    flex-wrap: wrap;
+  }
+  .chrome .book-title { font-weight: 600; margin-right: auto; }
+  .chrome .who {
+    display: flex; gap: 0; border: 1px solid var(--line-strong); border-radius: 999px; overflow: hidden;
+    font-size: .8rem;
+  }
+  .chrome .who button { border: 0; background: transparent; padding: .3rem .7rem; cursor: pointer; color: var(--ink-soft); }
+  .chrome .who button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+
+  .frozen-note {
+    font-size: .8rem;
+    color: var(--ink-faint);
+  }
+
+  /* ---------- book content. In production this is the Author's own CSS and
+       must not reach Marginly's interface (ADR-0005). Here it is scoped by
+       prefix, which is a prototype shortcut — see the findings on the issue. ---------- */
+
+  .book { color: var(--ink); }
+  .book h1 { font-size: 1.9rem; line-height: 1.25; margin: 0 0 .4rem; font-weight: 650; }
+  .book h2 { font-size: 1.15rem; margin: 2.2rem 0 .6rem; font-weight: 650; }
+  .book p { margin: 0 0 1.15rem; }
+  .book .lede { color: var(--ink-soft); font-style: italic; margin-bottom: 2rem; }
+  .book ul { margin: 0 0 1.15rem 1.2rem; padding: 0; }
+  .book li { margin-bottom: .4rem; }
+  .book figure { margin: 1.8rem 0; }
+  .book .img-stand-in {
+    height: 130px; display: grid; place-items: center;
+    background: #efece5; border: 1px dashed var(--line-strong);
+    color: var(--ink-faint); font-size: .85rem;
+  }
+  .book figcaption { font-size: .8rem; color: var(--ink-faint); margin-top: .4rem; }
+  .book table { border-collapse: collapse; width: 100%; margin: 1.8rem 0; font-size: .9rem; }
+  .book caption { text-align: left; font-size: .8rem; color: var(--ink-faint); margin-bottom: .4rem; }
+  .book th, .book td { border: 1px solid var(--line); padding: .35rem .6rem; text-align: left; }
+  .book thead th { background: #f3f0ea; font-weight: 600; }
+
+  /* ---------- highlight overlay: rectangles, never wrapper spans.
+       Overlapping ranges are unioned BEFORE drawing, so overlap and nesting
+       leave no trace when no Thread is selected. ---------- */
+
+  .hl-layer { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+  .hl-layer div { position: absolute; border-radius: 2px; }
+  .hl-layer .r { background: var(--hl); }
+  .hl-layer .r-active { background: var(--hl-active); box-shadow: inset 0 -1.5px 0 var(--hl-active-edge); }
+  .hl-layer .r-target { background: rgba(168, 96, 58, .25); outline: 1px dashed var(--unlinked); }
+  .book-wrap { position: relative; }
+  .book-wrap .book { position: relative; z-index: 2; }
+
+  /* ---------- pieces reused across variants (content, not layout) ---------- */
+
+  .role { font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
+  .role.author { color: var(--author); }
+  .role.reviewer { color: var(--reviewer); }
+  .cmt { margin: 0 0 .7rem; }
+  .cmt:last-child { margin-bottom: 0; }
+  .cmt .meta { display: flex; gap: .45rem; align-items: baseline; font-size: .78rem; color: var(--ink-faint); }
+  .cmt .meta .name { color: var(--ink); font-weight: 600; }
+  .cmt .body { font-size: .9rem; margin-top: .15rem; }
+  .composer { margin-top: .6rem; }
+  .composer textarea {
+    width: 100%; min-height: 3.4rem; resize: vertical; font: inherit; font-size: .88rem;
+    border: 1px solid var(--line-strong); border-radius: 6px; padding: .45rem .55rem; background: #fff;
+  }
+  .composer .row { display: flex; gap: .4rem; margin-top: .4rem; }
+  button.act {
+    font: inherit; font-size: .82rem; padding: .3rem .7rem; border-radius: 6px;
+    border: 1px solid var(--line-strong); background: #fff; color: var(--ink); cursor: pointer;
+  }
+  button.act.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.act.quiet { border-color: transparent; color: var(--ink-soft); }
+  .resolved-mark { font-size: .72rem; color: var(--accent); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+  .unlinked-mark { font-size: .72rem; color: var(--unlinked); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+  .quoted {
+    font-size: .82rem; color: var(--ink-soft); border-left: 2px solid var(--line-strong);
+    padding-left: .5rem; margin-bottom: .5rem;
+  }
+
+  /* ================= VARIANT A — margin rail ================= */
+
+  .vA { max-width: 74rem; margin: 0 auto; padding: 2.2rem 1.25rem 8rem; display: grid; grid-template-columns: minmax(0,1fr) 21rem; gap: 2.5rem; }
+  .vA .rail { position: relative; }
+  .vA .card {
+    position: absolute; left: 0; right: 0;
+    background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: .6rem .7rem;
+    font-size: .9rem; cursor: pointer; transition: box-shadow .12s;
+  }
+  .vA .card:hover { box-shadow: 0 1px 6px rgba(0,0,0,.07); }
+  .vA .card.sel { border-color: var(--accent); box-shadow: 0 2px 10px rgba(47,93,80,.14); cursor: default; }
+  .vA .card.unlinked { border-style: dashed; border-color: var(--unlinked); cursor: grab; }
+  .vA .card.unlinked.sel { cursor: grab; }
+  .vA .card .head { display: flex; align-items: baseline; gap: .4rem; margin-bottom: .3rem; }
+  .vA .card .collapsed { color: var(--ink-soft); font-size: .85rem; }
+  .vA .card .count { margin-left: auto; font-size: .75rem; color: var(--ink-faint); }
+  .vA .stack-note { font-size: .75rem; color: var(--ink-faint); margin-bottom: .3rem; }
+  .vA .version-pick { position: relative; }
+
+  /* ================= VARIANT B — inline expansion ================= */
+
+  .vB { display: grid; grid-template-columns: 5.5rem minmax(0,1fr); max-width: 52rem; margin: 0 auto; padding: 2.2rem 1.25rem 9rem; gap: 1rem; }
+  .vB .timeline { position: relative; }
+  .vB .timeline .spine { position: absolute; left: 1.15rem; top: .6rem; bottom: 0; width: 1px; background: var(--line-strong); }
+  .vB .timeline button {
+    position: relative; display: block; width: 100%; text-align: left; border: 0; background: transparent;
+    font: inherit; font-size: .8rem; color: var(--ink-faint); padding: .25rem 0 .25rem 2rem; cursor: pointer;
+  }
+  .vB .timeline button::before {
+    content: ""; position: absolute; left: .85rem; top: .7rem; width: .6rem; height: .6rem;
+    border-radius: 999px; background: var(--paper); border: 1px solid var(--line-strong);
+  }
+  .vB .timeline button[aria-pressed="true"] { color: var(--ink); font-weight: 600; }
+  .vB .timeline button[aria-pressed="true"]::before { background: var(--accent); border-color: var(--accent); }
+  .vB .pill {
+    display: inline-flex; align-items: center; gap: .25rem; vertical-align: baseline;
+    font-size: .7rem; font-weight: 700; line-height: 1;
+    background: var(--accent); color: #fff; border: 0; border-radius: 999px;
+    padding: .18rem .42rem; margin: 0 .12rem; cursor: pointer; position: relative; z-index: 3;
+  }
+  .vB .pill.multi { background: var(--ink); }
+  .vB .inline-thread {
+    border-left: 3px solid var(--accent); background: #fff; border-radius: 0 8px 8px 0;
+    padding: .7rem .85rem; margin: 0 0 1.15rem; font-size: .9rem;
+    border-top: 1px solid var(--line); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  }
+  .vB .inline-thread.unlinked { border-left-color: var(--unlinked); }
+  .vB .inline-thread .head { display: flex; align-items: baseline; gap: .5rem; margin-bottom: .45rem; }
+  .vB .tray {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    background: var(--chrome); border-top: 1px solid var(--line);
+    padding: .55rem .9rem 3.6rem; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;
+  }
+  .vB .tray .label { font-size: .78rem; color: var(--ink-faint); }
+  .vB .chip {
+    display: inline-flex; align-items: center; gap: .35rem; font-size: .8rem;
+    border: 1px dashed var(--unlinked); color: var(--unlinked); background: #fff;
+    border-radius: 999px; padding: .25rem .6rem; cursor: grab;
+  }
+
+  /* ================= VARIANT C — focus overlay ================= */
+
+  .vC { max-width: 36rem; margin: 0 auto; padding: 3rem 1.25rem 9rem; }
+  .vC .filmstrip {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 45;
+    display: flex; gap: .4rem; justify-content: center; padding: .5rem;
+    background: var(--chrome); border-bottom: 1px solid var(--line);
+    transform: translateY(-110%); transition: transform .16s;
+  }
+  .vC .filmstrip.open { transform: none; }
+  .vC .filmstrip button {
+    font: inherit; font-size: .78rem; border: 1px solid var(--line-strong); background: #fff;
+    border-radius: 6px; padding: .3rem .8rem; cursor: pointer; color: var(--ink-soft);
+  }
+  .vC .filmstrip button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .vC .corner {
+    position: fixed; right: 1rem; bottom: 4.6rem; z-index: 35; display: flex; flex-direction: column; gap: .4rem; align-items: flex-end;
+  }
+  .vC .corner button {
+    font: inherit; font-size: .8rem; border: 1px solid var(--line-strong); background: #fff;
+    border-radius: 999px; padding: .4rem .9rem; cursor: pointer; box-shadow: 0 1px 6px rgba(0,0,0,.08);
+  }
+  .vC .popover {
+    position: absolute; z-index: 20; width: min(23rem, calc(100vw - 2rem));
+    background: #fff; border: 1px solid var(--line-strong); border-radius: 10px;
+    box-shadow: 0 6px 26px rgba(0,0,0,.13); padding: .7rem .8rem; font-size: .9rem;
+  }
+  .vC .popover .head { display: flex; align-items: baseline; gap: .5rem; margin-bottom: .45rem; }
+  .vC .popover .carousel { display: flex; gap: .3rem; align-items: center; margin-left: auto; font-size: .75rem; color: var(--ink-faint); }
+  .vC .popover .carousel button { border: 0; background: transparent; cursor: pointer; font: inherit; color: var(--ink-soft); padding: 0 .2rem; }
+  .vC .index {
+    position: fixed; inset: 0; z-index: 50; background: var(--paper); overflow: auto;
+    padding: 1.2rem 1.25rem 7rem;
+  }
+  .vC .index .inner { max-width: 40rem; margin: 0 auto; }
+  .vC .index h3 { font-size: .95rem; margin: 1.4rem 0 .5rem; }
+  .vC .index .row {
+    display: flex; gap: .6rem; align-items: flex-start; padding: .6rem 0; border-bottom: 1px solid var(--line);
+    cursor: pointer;
+  }
+  .vC .index .row.unlinked { cursor: grab; }
+
+  /* ---------- selection gesture ---------- */
+
+  .bubble {
+    position: absolute; z-index: 25; transform: translate(-50%, .4rem);
+    background: var(--ink); color: #fff; border: 0; border-radius: 999px;
+    font: inherit; font-size: .78rem; padding: .32rem .8rem; cursor: pointer;
+    box-shadow: 0 3px 12px rgba(0,0,0,.22); white-space: nowrap;
+  }
+  .drag-ghost {
+    position: fixed; z-index: 60; pointer-events: none;
+    background: #fff; border: 1px dashed var(--unlinked); color: var(--unlinked);
+    border-radius: 999px; padding: .22rem .6rem; font-size: .78rem;
+    box-shadow: 0 3px 12px rgba(0,0,0,.16);
+  }
+  .drop-hint {
+    position: fixed; z-index: 60; left: 50%; transform: translateX(-50%); bottom: 4.4rem;
+    background: var(--unlinked); color: #fff; font-size: .78rem; padding: .3rem .8rem; border-radius: 999px;
+    pointer-events: none; max-width: min(30rem, 90vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* ---------- prototype-only furniture, deliberately ugly ---------- */
+
+  .proto-bar {
+    position: fixed; left: 50%; bottom: .8rem; transform: translateX(-50%); z-index: 90;
+    display: flex; align-items: center; gap: .2rem;
+    background: #16161a; color: #fff; border-radius: 999px; padding: .3rem .4rem;
+    box-shadow: 0 4px 18px rgba(0,0,0,.3); font-size: .8rem;
+  }
+  .proto-bar button { background: transparent; border: 0; color: #fff; font: inherit; cursor: pointer; padding: .2rem .5rem; }
+  .proto-bar .label { padding: 0 .5rem; opacity: .9; }
+  .state-panel {
+    position: fixed; right: .8rem; bottom: 3.4rem; z-index: 85; width: min(30rem, calc(100vw - 1.6rem));
+    max-height: 55vh; overflow: auto; background: #16161a; color: #d9d7d2;
+    font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    border-radius: 8px; padding: .7rem .8rem; box-shadow: 0 4px 18px rgba(0,0,0,.3);
+  }
+  .state-panel h4 { margin: 0 0 .4rem; font-size: 11px; color: #fff; }
+  .state-panel table { border-collapse: collapse; width: 100%; }
+  .state-panel td, .state-panel th { padding: .1rem .4rem .1rem 0; text-align: left; vertical-align: top; }
+  .state-panel th { color: #8f8b84; font-weight: 400; border-bottom: 1px solid #33323a; }
+  .state-panel .u { color: #e09a6a; }
+
+  @media (max-width: 900px) {
+    .vA { grid-template-columns: minmax(0,1fr); }
+    .vA .rail {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; height: 45vh;
+      background: var(--chrome); border-top: 1px solid var(--line);
+      overflow: auto; padding: .6rem .8rem 4rem;
+    }
+    .vA .card { position: static; margin-bottom: .5rem; }
+    .vA { padding-bottom: 2rem; }
+    .vB { grid-template-columns: minmax(0,1fr); }
+    .vB .timeline { display: flex; gap: .3rem; overflow: auto; }
+    .vB .timeline .spine { display: none; }
+    .vB .timeline button { width: auto; padding: .25rem .6rem; border: 1px solid var(--line-strong); border-radius: 6px; }
+    .vB .timeline button::before { display: none; }
+  }
+</style>
+
+<div id="app"></div>
+<div id="proto"></div>
+
+<script>
+/* ============================================================
+   1. The Book. Two texts: v1 and v2 share one, v3 is copy-edited.
+   ============================================================ */
+
+const BOOK_TITLE = "The Weight of Small Decisions";
+
+const BODY_EARLY = `
+<h1>The Weight of Small Decisions</h1>
+<p class="lede">A chapter about the decisions nobody writes down.</p>
+
+<p>Every team keeps two kinds of decisions. The first kind gets a meeting, a document and a name. The second kind gets made in a hurry by whoever happens to be holding the keyboard, and it is the second kind that decides what the software becomes.</p>
+
+<p>In practice the decision that is cheapest to defer is rarely the one that is cheapest to reverse. We defer on the basis of urgency and we reverse on the basis of coupling, and those two forces have never once pointed in the same direction. So the deferred decision hardens quietly while everybody waits for a better moment to make it properly.</p>
+
+<h2>Being wrong out loud</h2>
+
+<p>A team that cannot say when it was wrong cannot say when it was right. Both claims need the same thing, which is a record of what was expected, and a team keeping no such record has only the present tense to argue in.</p>
+
+<p>This is why the second draft is where the argument is actually made. The first draft establishes that there is something worth arguing about. The second one has to survive somebody else reading it, and surviving a reader is a different skill from having an idea.</p>
+
+<figure>
+  <div class="img-stand-in">Figure 1</div>
+  <figcaption>A figure, and therefore not addressable: ADR-0005 leaves figures out of the extracted text.</figcaption>
+</figure>
+
+<p>Progress on the second kind of decision is measured in weeks, not sprints. It has to be, because the feedback arrives at the speed of other people changing their minds, and no ceremony makes that faster.</p>
+
+<h2>The reviewer problem</h2>
+
+<p>The hardest thing to get out of a review is disagreement. A reviewer who agrees with everything has cost you a week and told you nothing, and the polite reviewer is far more common than the hostile one.</p>
+
+<ul>
+  <li>Ask for the weakest paragraph, never the best one.</li>
+  <li>Give the reviewer permission to stop reading, then ask where they stopped.</li>
+  <li>Never send a draft with a question attached; the question becomes the whole review.</li>
+</ul>
+
+<table>
+  <caption>Table 1, also unaddressable</caption>
+  <thead><tr><th>Draft</th><th>Readers</th><th>Weeks</th></tr></thead>
+  <tbody>
+    <tr><td>First</td><td>1</td><td>2</td></tr>
+    <tr><td>Second</td><td>4</td><td>6</td></tr>
+    <tr><td>Third</td><td>12</td><td>3</td></tr>
+  </tbody>
+</table>
+
+<p>None of this is a process. It is a set of habits that keep the second kind of decision visible long enough for somebody to object to it, which is the only mechanism anybody has ever found for being wrong cheaply.</p>
+
+<p>The alternative is being wrong expensively, later, in front of readers who never signed up to review anything.</p>
+`;
+
+/* v3: the Author copy-edited one sentence offline. Exactly the case ADR-0004
+   accepts: an exact-match miss Unlinks the Thread that was anchored to it. */
+const BODY_LATEST = BODY_EARLY.replace(
+  "the second draft is where the argument is actually made",
+  "the second draft is where the argument actually gets made"
+);
+
+const VERSIONS = [
+  { n: 1, body: BODY_EARLY,  uploaded: "12 Feb" },
+  { n: 2, body: BODY_EARLY,  uploaded: "3 Mar"  },
+  { n: 3, body: BODY_LATEST, uploaded: "28 Mar" },
+];
+const LATEST = 3;
+
+/* ============================================================
+   2. Threads. Stored as anchor text + Comments, never as offsets —
+      offsets are computed per Version, which is ADR-0004's whole point.
+   ============================================================ */
+
+const THREADS = [
+  { id: "t1", anchor: "the decision that is cheapest to defer", createdOn: 1, resolvedOn: null,
+    comments: [
+      { v: 1, name: "Priya", role: "reviewer", body: "Is this true, or is it just tidy? I can think of three deferred decisions that were also trivially reversible." },
+      { v: 1, name: "Sam",   role: "author",   body: "Tidy. I'll soften it to “rarely” and give the counterexample a footnote." },
+      { v: 2, name: "Priya", role: "reviewer", body: "Softened, but the footnote is doing the arguing now." },
+      { v: 3, name: "Dev",   role: "reviewer", body: "Agreed with Priya. Either commit to the claim or drop it." },
+    ]},
+  { id: "t2", anchor: "cheapest to defer is rarely the one that is cheapest to reverse", createdOn: 1, resolvedOn: null,
+    comments: [
+      { v: 1, name: "Dev", role: "reviewer", body: "This is the thesis of the chapter and it's buried mid-paragraph." },
+      { v: 2, name: "Sam", role: "author",   body: "Moving it up would spoil the setup. Leaving it." },
+    ]},
+  { id: "t3", anchor: "rarely the one", createdOn: 2, resolvedOn: null,
+    comments: [
+      { v: 2, name: "Priya", role: "reviewer", body: "“rarely” is the hedge I asked for and now I don't like it." },
+    ]},
+  { id: "t4", anchor: "A team that cannot say when it was wrong cannot say when it was right.", createdOn: 1, resolvedOn: null,
+    comments: [
+      { v: 1, name: "Dev", role: "reviewer", body: "Best line in the chapter. Don't touch it." },
+    ]},
+  { id: "t5", anchor: "cannot say when it was wrong", createdOn: 2, resolvedOn: null,
+    comments: [
+      { v: 2, name: "Priya", role: "reviewer", body: "Wrong about what, though? The chapter never says what the expectation was." },
+      { v: 3, name: "Sam",   role: "author",   body: "Fair. Adding an example in the next pass." },
+    ]},
+  { id: "t6", anchor: "A team that cannot say when it was wrong cannot say when it was right.", createdOn: 3, resolvedOn: null,
+    comments: [
+      { v: 3, name: "Nadia", role: "reviewer", body: "Separate point from Dev's: the sentence is a chiasmus and the book has used three already." },
+    ]},
+  { id: "t7", anchor: "the second draft is where the argument is actually made", createdOn: 2, resolvedOn: null,
+    comments: [
+      { v: 2, name: "Nadia", role: "reviewer", body: "Then why is there no chapter about the second draft?" },
+      { v: 3, name: "Nadia", role: "reviewer", body: "Still no chapter about the second draft." },
+    ]},
+  { id: "t8", anchor: "measured in weeks, not sprints", createdOn: 1, resolvedOn: 2,
+    comments: [
+      { v: 1, name: "Priya", role: "reviewer", body: "The sprint framing will date the book badly." },
+      { v: 2, name: "Sam",   role: "author",   body: "Cut in the next pass. Thanks — you're right that it dates it." },
+    ]},
+  { id: "t9", anchor: "A reviewer who agrees with everything has cost you a week and told you nothing", createdOn: 3, resolvedOn: null,
+    comments: [
+      { v: 3, name: "Dev", role: "reviewer", body: "Put this on the cover." },
+    ]},
+];
+
+/* ============================================================
+   3. Extraction and matching — ADR-0005 and ADR-0004, in miniature.
+   ============================================================ */
+
+const SKIP_TAGS = new Set(["FIGURE", "TABLE", "SCRIPT", "STYLE", "NOSCRIPT"]);
+const BLOCK_TAGS = new Set(["P", "H1", "H2", "H3", "H4", "LI", "BLOCKQUOTE", "DIV", "UL", "OL", "SECTION"]);
+
+/* Builds the whitespace-normalised extracted text AND, for every character in
+   it, the DOM text node and raw offset it came from. That second half is the
+   part a spec has to be honest about: a stored character range is only useful
+   if something can turn it back into a position in markup. */
+function buildIndex(root) {
+  const chars = [];
+  const sep = () => { if (chars.length && chars[chars.length - 1].ch !== " ") chars.push({ ch: " ", node: null, off: 0 }); };
+  (function walk(node) {
+    for (const child of node.childNodes) {
+      if (child.nodeType === 3) {
+        const raw = child.nodeValue;
+        for (let i = 0; i < raw.length; i++) {
+          const ch = raw[i];
+          if (/\s/.test(ch)) sep();
+          else chars.push({ ch, node: child, off: i });
+        }
+      } else if (child.nodeType === 1) {
+        if (SKIP_TAGS.has(child.tagName)) continue;
+        /* Marginly's own injected UI is not part of the Book's text. In
+           production this separation is structural; here it is an attribute. */
+        if (child.hasAttribute("data-proto-ui")) continue;
+        const isBlock = BLOCK_TAGS.has(child.tagName);
+        if (isBlock) sep();
+        walk(child);
+        if (isBlock) sep();
+      }
+    }
+  })(root);
+  while (chars.length && chars[0].ch === " ") chars.shift();
+  while (chars.length && chars[chars.length - 1].ch === " ") chars.pop();
+  return { chars, text: chars.map(c => c.ch).join("") };
+}
+
+function extractedTextOf(body) {
+  const el = document.createElement("div");
+  el.innerHTML = body;
+  return buildIndex(el);
+}
+
+/* ADR-0004: one occurrence links. Several occurrences fall back to the
+   containing-segment tiebreak, which the prototype does not implement — it
+   treats ambiguity the same as absence, i.e. Unlinked. */
+function matchAnchor(text, anchor) {
+  const hits = [];
+  let i = text.indexOf(anchor);
+  while (i !== -1) { hits.push(i); i = text.indexOf(anchor, i + 1); }
+  if (hits.length === 1) return [hits[0], hits[0] + anchor.length];
+  return null;
+}
+
+/* ============================================================
+   4. thread_versions, computed the way an Upload would compute it.
+   ============================================================ */
+
+const TEXT_OF = {};
+VERSIONS.forEach(v => { TEXT_OF[v.n] = extractedTextOf(v.body).text; });
+
+let rows = {};          /* version -> threadId -> row */
+let liveAnchors = {};   /* threadId -> anchor text, mutable on the latest Version */
+
+function visibleRange(t) { return [t.createdOn, t.resolvedOn ?? LATEST]; }
+
+function computeRows() {
+  rows = {};
+  liveAnchors = {};
+  THREADS.forEach(t => { liveAnchors[t.id] = t.anchor; });
+  for (const v of VERSIONS.map(x => x.n)) {
+    rows[v] = {};
+    const text = TEXT_OF[v];
+    for (const t of THREADS) {
+      const [from, to] = visibleRange(t);
+      if (v < from || v > to) continue;
+      const m = matchAnchor(text, liveAnchors[t.id]);
+      if (m) {
+        rows[v][t.id] = { status: "linked", text_position: m };
+      } else {
+        /* ADR-0006's consequence in action: a placement has to be derivable
+           from the previous Version's character range, so it is a fraction of
+           the extracted text, never a pixel. */
+        const prev = rows[v - 1] && rows[v - 1][t.id];
+        let frac = 0.5;
+        if (prev) {
+          frac = prev.status === "linked"
+            ? prev.text_position[0] / TEXT_OF[v - 1].length
+            : prev.thread_position.frac;
+        }
+        rows[v][t.id] = { status: "unlinked", thread_position: { frac } };
+      }
+    }
+  }
+}
+computeRows();
+
+function rowsFor(v) {
+  return THREADS
+    .filter(t => rows[v] && rows[v][t.id])
+    .map(t => ({ t, row: rows[v][t.id] }));
+}
+function visibleComments(t, v) { return t.comments.filter(c => c.v <= v); }
+function isResolvedOn(t, v) { return t.resolvedOn != null && v >= t.resolvedOn; }
+function isFrozen(v) { return v !== LATEST; }
+
+/* ============================================================
+   5. View state
+   ============================================================ */
+
+const state = {
+  variant: new URLSearchParams(location.search).get("variant") || "A",
+  version: LATEST,
+  role: "reviewer",
+  selectedThread: null,
+  openThreads: new Set(),   /* variant B: inline panels are multi-open */
+  indexOpen: false,         /* variant C */
+  filmstripOpen: false,     /* variant C */
+  popoverAt: null,          /* variant C: {threadIds, offset} */
+  popoverIx: 0,
+  compose: null,            /* {start, end} — a pending new Thread */
+  showState: false,
+  drag: null,
+};
+
+const VARIANT_NAMES = { A: "Margin rail", B: "Inline expansion", C: "Focus overlay" };
+const app = document.getElementById("app");
+
+/* ============================================================
+   6. Highlight drawing. Union first, then draw — otherwise overlap
+      would double-darken and leak the nesting the ticket rules out.
+   ============================================================ */
+
+function unionOf(intervals) {
+  const sorted = intervals.slice().sort((a, b) => a[0] - b[0]);
+  const out = [];
+  for (const iv of sorted) {
+    const last = out[out.length - 1];
+    if (last && iv[0] <= last[1]) last[1] = Math.max(last[1], iv[1]);
+    else out.push([iv[0], iv[1]]);
+  }
+  return out;
+}
+
+/* One Range per contiguous run of characters inside a single text node. This
+   is what makes a range that spans a table skip the table: the table's text is
+   not in the index, so no run covers it. */
+function rectsFor(index, [start, end], originRect) {
+  const out = [];
+  let runNode = null, runFrom = -1, runTo = -1;
+  const flush = () => {
+    if (!runNode) return;
+    const r = document.createRange();
+    r.setStart(runNode, runFrom);
+    r.setEnd(runNode, runTo + 1);
+    for (const cr of r.getClientRects()) {
+      if (cr.width < 0.5 && cr.height < 0.5) continue;
+      out.push({ x: cr.left - originRect.left, y: cr.top - originRect.top, w: cr.width, h: cr.height });
+    }
+    runNode = null;
+  };
+  for (let i = start; i < end && i < index.chars.length; i++) {
+    const c = index.chars[i];
+    if (!c.node) { continue; }
+    if (c.node === runNode && c.off === runTo + 1) { runTo = c.off; continue; }
+    flush();
+    runNode = c.node; runFrom = c.off; runTo = c.off;
+  }
+  flush();
+  return out;
+}
+
+function paintLayer(layer, index, wrap, groups) {
+  layer.innerHTML = "";
+  const origin = wrap.getBoundingClientRect();
+  for (const g of groups) {
+    for (const iv of g.intervals) {
+      for (const r of rectsFor(index, iv, origin)) {
+        const d = document.createElement("div");
+        d.className = g.cls;
+        d.style.left = r.x + "px"; d.style.top = r.y + "px";
+        d.style.width = r.w + "px"; d.style.height = r.h + "px";
+        layer.appendChild(d);
+      }
+    }
+  }
+}
+
+/* ============================================================
+   7. Hit testing and the selection gesture
+   ============================================================ */
+
+function domToOffset(index, node, off) {
+  const chars = index.chars;
+  for (let i = 0; i < chars.length; i++) if (chars[i].node === node && chars[i].off >= off) return i;
+  for (let i = chars.length - 1; i >= 0; i--) if (chars[i].node === node) return i + 1;
+  return null;
+}
+
+function offsetFromPoint(index, x, y) {
+  let node = null, off = 0;
+  if (document.caretRangeFromPoint) {
+    const r = document.caretRangeFromPoint(x, y);
+    if (!r) return null;
+    node = r.startContainer; off = r.startOffset;
+  } else if (document.caretPositionFromPoint) {
+    const p = document.caretPositionFromPoint(x, y);
+    if (!p) return null;
+    node = p.offsetNode; off = p.offset;
+  }
+  if (!node || node.nodeType !== 3) return null;
+  return domToOffset(index, node, off);
+}
+
+function selectionRange(index, bookEl) {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
+  const r = sel.getRangeAt(0);
+  if (!bookEl.contains(r.commonAncestorContainer)) return null;
+  const start = domToOffset(index, r.startContainer, r.startOffset);
+  const end = domToOffset(index, r.endContainer, r.endOffset);
+  if (start == null || end == null || end <= start) return null;
+  return [start, end];
+}
+
+/* The whole "start a Thread" gesture: a plain text drag anywhere, never a
+   per-element affordance, because a selection may run across paragraphs. */
+function selectionAnchorPoint(index, wrap) {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return null;
+  const rects = sel.getRangeAt(0).getClientRects();
+  if (!rects.length) return null;
+  const last = rects[rects.length - 1];
+  const origin = wrap.getBoundingClientRect();
+  return { x: last.right - origin.left, y: last.bottom - origin.top };
+}
+
+function threadsCovering(v, offset) {
+  return rowsFor(v)
+    .filter(({ row }) => row.status === "linked" && offset >= row.text_position[0] && offset < row.text_position[1])
+    .map(({ t }) => t);
+}
+
+/* Expand a drop point out to its sentence — the target a dragged Unlinked
+   Thread lands on when the reader has made no explicit selection. */
+function sentenceAt(text, offset) {
+  let s = offset, e = offset;
+  while (s > 0 && !(text[s - 1] === "." && text[s] === " ")) s--;
+  while (s < text.length && text[s] === " ") s++;
+  while (e < text.length && text[e] !== ".") e++;
+  if (e < text.length) e++;
+  return e > s ? [s, e] : null;
+}
+
+/* ============================================================
+   8. Mutations. All stubs — nothing leaves memory.
+   ============================================================ */
+
+function addComment(t, body) {
+  if (!body.trim() || isFrozen(state.version)) return;
+  t.comments.push({ v: LATEST, name: "You", role: state.role, body: body.trim() });
+  render();
+}
+function resolveThread(t) {
+  if (state.role !== "author" || isFrozen(state.version)) return;
+  t.resolvedOn = LATEST;
+  computeRows();
+  state.selectedThread = null;
+  render();
+}
+function startThread(range, body) {
+  const text = TEXT_OF[LATEST];
+  const anchor = text.slice(range[0], range[1]);
+  const t = { id: "n" + (THREADS.length + 1), anchor, createdOn: LATEST, resolvedOn: null,
+              comments: [{ v: LATEST, name: "You", role: state.role, body: body.trim() || "…" }] };
+  THREADS.push(t);
+  computeRows();
+  state.compose = null;
+  state.selectedThread = t.id;
+  state.openThreads.add(t.id);
+  render();
+  return t;
+}
+function linkThreadTo(t, range) {
+  const text = TEXT_OF[LATEST];
+  liveAnchors[t.id] = text.slice(range[0], range[1]);
+  t.anchor = liveAnchors[t.id];
+  computeRows();
+  render();
+}
+function unlinkThread(t) {
+  if (isFrozen(state.version)) return;
+  liveAnchors[t.id] = " nomatch" + t.id;
+  t.anchor = liveAnchors[t.id];
+  computeRows();
+  render();
+}
+function moveUnlinked(t, frac) {
+  const row = rows[state.version][t.id];
+  if (row && row.status === "unlinked") row.thread_position.frac = Math.max(0, Math.min(1, frac));
+}
+
+/* ============================================================
+   9. Shared content fragments (content, not layout)
+   ============================================================ */
+
+function commentEls(t, v) {
+  const frag = document.createDocumentFragment();
+  for (const c of visibleComments(t, v)) {
+    const d = el("div", "cmt");
+    const meta = el("div", "meta");
+    meta.append(el("span", "name", c.name), el("span", "role " + c.role, c.role === "author" ? "Author" : "Reviewer"));
+    d.append(meta, el("div", "body", c.body));
+    frag.appendChild(d);
+  }
+  return frag;
+}
+
+function composerEl(t) {
+  const wrap = el("div", "composer");
+  const ta = el("textarea");
+  ta.placeholder = "Add a Comment…";
+  const row = el("div", "row");
+  const send = el("button", "act primary", "Comment");
+  send.onclick = () => addComment(t, ta.value);
+  row.append(send);
+  if (state.role === "author" && !isResolvedOn(t, state.version)) {
+    const res = el("button", "act", "Resolve");
+    res.onclick = () => resolveThread(t);
+    row.append(res);
+  }
+  if (rows[state.version][t.id].status === "linked") {
+    const un = el("button", "act quiet", "Unlink");
+    un.onclick = () => unlinkThread(t);
+    row.append(un);
+  }
+  wrap.append(ta, row);
+  return wrap;
+}
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+function quotedAnchor(t, v) {
+  const row = rows[v][t.id];
+  if (row.status !== "linked") return null;
+  const s = TEXT_OF[v].slice(row.text_position[0], row.text_position[1]);
+  return el("div", "quoted", "“" + (s.length > 90 ? s.slice(0, 90) + "…" : s) + "”");
+}
+
+/* ============================================================
+   10. Chrome
+   ============================================================ */
+
+function chromeEl(versionControlEl) {
+  const bar = el("div", "chrome");
+  bar.append(el("div", "book-title", BOOK_TITLE));
+  if (isFrozen(state.version)) {
+    bar.append(el("div", "frozen-note",
+      "Version " + state.version + " of " + LATEST + ", uploaded " + VERSIONS[state.version - 1].uploaded + ". Read-only."));
+  }
+  if (versionControlEl) bar.append(versionControlEl);
+  const who = el("div", "who");
+  for (const r of ["author", "reviewer"]) {
+    const b = el("button", null, r === "author" ? "Author" : "Reviewer");
+    b.setAttribute("aria-pressed", String(state.role === r));
+    b.onclick = () => { state.role = r; state.selectedThread = null; render(); };
+    who.append(b);
+  }
+  bar.append(who);
+  return bar;
+}
+
+/* ============================================================
+   11. Drag-to-link. One primitive; each variant supplies a different
+       source for it, which is the interesting disagreement.
+   ============================================================ */
+
+function beginLinkDrag(t, ev, ctx) {
+  ev.preventDefault();
+  const ghost = el("div", "drag-ghost", "Linking: " + firstLine(t));
+  document.body.append(ghost);
+  const hint = el("div", "drop-hint", "Drop on the text this Thread belongs beside");
+  document.body.append(hint);
+
+  const move = (e) => {
+    ghost.style.left = (e.clientX + 12) + "px";
+    ghost.style.top = (e.clientY - 10) + "px";
+    const overBook = ctx.bookEl.contains(document.elementFromPoint(e.clientX, e.clientY));
+    let target = null;
+    if (overBook) {
+      const sel = selectionRange(ctx.index, ctx.bookEl);
+      const off = offsetFromPoint(ctx.index, e.clientX, e.clientY);
+      target = sel || (off != null ? sentenceAt(ctx.index.text, off) : null);
+    }
+    ctx.onHover(target);
+    hint.textContent = target
+      ? "Link to: “" + ctx.index.text.slice(target[0], Math.min(target[1], target[0] + 70)) + "…”"
+      : (ctx.railEl ? "Drop in the margin to leave it unplaced, or on the text to link it" : "Drop on the text this Thread belongs beside");
+    if (ctx.railEl && !overBook) {
+      const rr = ctx.railEl.getBoundingClientRect();
+      moveUnlinked(t, (e.clientY - rr.top + ctx.railEl.scrollTop) / Math.max(1, ctx.railEl.scrollHeight));
+    }
+  };
+  const up = (e) => {
+    document.removeEventListener("mousemove", move);
+    document.removeEventListener("mouseup", up);
+    ghost.remove(); hint.remove();
+    const overBook = ctx.bookEl.contains(document.elementFromPoint(e.clientX, e.clientY));
+    if (overBook) {
+      const sel = selectionRange(ctx.index, ctx.bookEl);
+      const off = offsetFromPoint(ctx.index, e.clientX, e.clientY);
+      const target = sel || (off != null ? sentenceAt(ctx.index.text, off) : null);
+      if (target) { linkThreadTo(t, target); return; }
+    }
+    ctx.onHover(null);
+    render();
+  };
+  document.addEventListener("mousemove", move);
+  document.addEventListener("mouseup", up);
+}
+
+function firstLine(t) {
+  const c = t.comments[0];
+  const s = c ? c.body : "";
+  return s.length > 34 ? s.slice(0, 34) + "…" : s;
+}
+
+/* ============================================================
+   12. VARIANT A — margin rail
+   ============================================================ */
+
+function renderA() {
+  const v = state.version;
+  const frozen = isFrozen(v);
+
+  const pick = el("div", "version-pick");
+  const sel = document.createElement("select");
+  for (const ver of VERSIONS) {
+    const o = document.createElement("option");
+    o.value = String(ver.n);
+    o.textContent = "v" + ver.n + (ver.n === LATEST ? " · latest" : " · " + ver.uploaded);
+    if (ver.n === v) o.selected = true;
+    sel.append(o);
+  }
+  sel.onchange = () => { state.version = Number(sel.value); state.selectedThread = null; render(); };
+  pick.append(sel);
+
+  app.append(chromeEl(pick));
+
+  const grid = el("div", "vA");
+  const wrap = el("div", "book-wrap");
+  const layer = el("div", "hl-layer");
+  const book = el("div", "book");
+  book.innerHTML = VERSIONS[v - 1].body;
+  wrap.append(layer, book);
+  const rail = el("div", "rail");
+  grid.append(wrap, rail);
+  app.append(grid);
+
+  const index = buildIndex(book);
+  const live = rowsFor(v);
+  let hoverTarget = null;
+
+  const draw = () => {
+    const groups = [{ cls: "r", intervals: unionOf(live.filter(x => x.row.status === "linked").map(x => x.row.text_position)) }];
+    const selT = live.find(x => x.t.id === state.selectedThread);
+    if (selT && selT.row.status === "linked") groups.push({ cls: "r-active", intervals: [selT.row.text_position] });
+    if (hoverTarget) groups.push({ cls: "r-target", intervals: [hoverTarget] });
+    paintLayer(layer, index, wrap, groups);
+  };
+
+  /* Cards, laid out at the y of their text, nudged down to avoid collisions. */
+  const layoutCards = () => {
+    const origin = wrap.getBoundingClientRect();
+    const entries = live.map(({ t, row }) => {
+      let y;
+      if (row.status === "linked") {
+        const r = rectsFor(index, row.text_position, origin)[0];
+        y = r ? r.y : 0;
+      } else {
+        y = row.thread_position.frac * wrap.offsetHeight;
+      }
+      return { t, row, y };
+    }).sort((a, b) => a.y - b.y);
+
+    rail.innerHTML = "";
+    rail.style.height = wrap.offsetHeight + "px";
+    let cursor = 0;
+    for (const e of entries) {
+      const card = cardA(e.t, e.row, index, book, rail, tgt => { hoverTarget = tgt; draw(); });
+      rail.append(card);
+      const top = Math.max(e.y, cursor);
+      card.style.top = top + "px";
+      cursor = top + card.offsetHeight + 8;
+    }
+  };
+
+  const relayout = () => { draw(); layoutCards(); draw(); };
+  requestAnimationFrame(relayout);
+
+  /* Click a highlight. Where several Threads cover the point, A shows every
+     one of them stacked in the rail rather than picking for you. */
+  book.addEventListener("click", (e) => {
+    const off = offsetFromPoint(index, e.clientX, e.clientY);
+    if (off == null) return;
+    const hits = threadsCovering(v, off);
+    if (!hits.length) { state.selectedThread = null; render(); return; }
+    const cur = hits.findIndex(t => t.id === state.selectedThread);
+    state.selectedThread = hits[(cur + 1) % hits.length].id;
+    render();
+  });
+
+  if (!frozen) wireSelectionBubble(wrap, book, index, "Start a Thread");
+}
+
+function cardA(t, row, index, bookEl, railEl, onHover) {
+  const selected = state.selectedThread === t.id;
+  const card = el("div", "card" + (selected ? " sel" : "") + (row.status === "unlinked" ? " unlinked" : ""));
+  const head = el("div", "head");
+  const cs = visibleComments(t, state.version);
+  head.append(el("span", "role " + cs[0].role, cs[0].name));
+  if (isResolvedOn(t, state.version)) head.append(el("span", "resolved-mark", "Resolved"));
+  if (row.status === "unlinked") head.append(el("span", "unlinked-mark", "Unlinked"));
+  head.append(el("span", "count", cs.length + (cs.length === 1 ? " comment" : " comments")));
+  card.append(head);
+
+  if (!selected) {
+    card.append(el("div", "collapsed", firstLine(t)));
+    card.onclick = () => { state.selectedThread = t.id; render(); };
+  } else {
+    const q = quotedAnchor(t, state.version);
+    if (q) card.append(q);
+    card.append(commentEls(t, state.version));
+    if (!isFrozen(state.version) && !isResolvedOn(t, state.version)) card.append(composerEl(t));
+  }
+
+  if (row.status === "unlinked" && !isFrozen(state.version)) {
+    card.addEventListener("mousedown", (e) => {
+      if (e.target.closest("textarea, button")) return;
+      beginLinkDrag(t, e, { index, bookEl, railEl, onHover });
+    });
+  }
+  return card;
+}
+
+/* ============================================================
+   13. VARIANT B — inline expansion
+   ============================================================ */
+
+function renderB() {
+  const v = state.version;
+  app.append(chromeEl(null));
+
+  const grid = el("div", "vB");
+  const tl = el("div", "timeline");
+  tl.append(el("div", "spine"));
+  for (const ver of VERSIONS) {
+    const b = el("button", null, "v" + ver.n + (ver.n === LATEST ? " · latest" : ""));
+    b.setAttribute("aria-pressed", String(ver.n === v));
+    b.onclick = () => { state.version = ver.n; state.openThreads.clear(); render(); };
+    tl.append(b);
+  }
+  const wrap = el("div", "book-wrap");
+  const layer = el("div", "hl-layer");
+  const book = el("div", "book");
+  book.innerHTML = VERSIONS[v - 1].body;
+  wrap.append(layer, book);
+  grid.append(tl, wrap);
+  app.append(grid);
+
+  let index = buildIndex(book);
+  const live = rowsFor(v);
+  let hoverTarget = null;
+
+  const draw = () => {
+    const groups = [{ cls: "r", intervals: unionOf(live.filter(x => x.row.status === "linked").map(x => x.row.text_position)) }];
+    for (const id of state.openThreads) {
+      const e = live.find(x => x.t.id === id);
+      if (e && e.row.status === "linked") groups.push({ cls: "r-active", intervals: [e.row.text_position] });
+    }
+    if (hoverTarget) groups.push({ cls: "r-target", intervals: [hoverTarget] });
+    paintLayer(layer, index, wrap, groups);
+  };
+
+  const onHover = tgt => { hoverTarget = tgt; draw(); };
+
+  /* Everything B injects is worked out against a clean index first, because
+     injecting into the flow splits text nodes and invalidates it. This is the
+     cost of putting UI inside the Book's markup instead of over it. */
+  const linked = live.filter(x => x.row.status === "linked");
+
+  /* Open Threads become panels after the block their highlight ends in. */
+  for (const { t, row } of linked) {
+    if (!state.openThreads.has(t.id)) continue;
+    const endChar = index.chars[Math.min(row.text_position[1], index.chars.length) - 1];
+    const blockEl = endChar && endChar.node ? blockAncestor(endChar.node, book) : null;
+    if (blockEl) blockEl.after(panelB(t, row));
+  }
+
+  /* One pill per distinct highlight end, in the flow of the text. Threads
+     ending in the same place collapse into a single counted pill. */
+  const grouped = new Map();
+  for (const { t, row } of linked) {
+    const endChar = index.chars[Math.min(row.text_position[1], index.chars.length) - 1];
+    if (!endChar || !endChar.node) continue;
+    const at = row.text_position[1];
+    if (!grouped.has(at)) grouped.set(at, { node: endChar.node, off: endChar.off, threads: [] });
+    grouped.get(at).threads.push(t);
+  }
+  /* Back to front, so an earlier insertion cannot move a later target. */
+  for (const at of Array.from(grouped.keys()).sort((a, b) => b - a)) {
+    const g = grouped.get(at);
+    const pill = el("button", "pill" + (g.threads.length > 1 ? " multi" : ""), String(g.threads.length));
+    pill.setAttribute("data-proto-ui", "");
+    pill.onclick = () => {
+      const anyOpen = g.threads.some(t => state.openThreads.has(t.id));
+      g.threads.forEach(t => anyOpen ? state.openThreads.delete(t.id) : state.openThreads.add(t.id));
+      render();
+    };
+    const r = document.createRange();
+    const cap = Math.min(g.off + 1, g.node.nodeValue.length);
+    r.setStart(g.node, cap);
+    r.collapse(true);
+    try { r.insertNode(pill); } catch (_) { /* prototype */ }
+  }
+
+  /* Rebuild: the pills split text nodes, but they carry data-proto-ui so the
+     extracted text — and therefore every offset — comes out identical. */
+  index = buildIndex(book);
+
+  /* Unlinked Threads wait in a tray, not in the text. */
+  const unlinked = live.filter(x => x.row.status === "unlinked");
+  if (unlinked.length) {
+    const tray = el("div", "tray");
+    tray.append(el("span", "label", unlinked.length + " Unlinked — drag onto the text to link"));
+    for (const { t } of unlinked) {
+      const chip = el("span", "chip", firstLine(t));
+      if (!isFrozen(v)) {
+        chip.addEventListener("mousedown", e => beginLinkDrag(t, e, { index, bookEl: book, railEl: null, onHover }));
+      }
+      chip.addEventListener("click", () => { state.openThreads.add(t.id); render(); });
+      tray.append(chip);
+    }
+    app.append(tray);
+    for (const { t, row } of unlinked) {
+      if (!state.openThreads.has(t.id)) continue;
+      tray.append(panelB(t, row));
+    }
+  }
+
+  requestAnimationFrame(draw);
+  if (!isFrozen(v)) wireSelectionBubble(wrap, book, index, "＋ Thread");
+}
+
+function panelB(t, row) {
+  const p = el("div", "inline-thread" + (row.status === "unlinked" ? " unlinked" : ""));
+  p.setAttribute("data-proto-ui", "");
+  const head = el("div", "head");
+  head.append(el("span", "role " + t.comments[0].role, t.comments[0].name));
+  if (isResolvedOn(t, state.version)) head.append(el("span", "resolved-mark", "Resolved"));
+  if (row.status === "unlinked") head.append(el("span", "unlinked-mark", "Unlinked"));
+  const close = el("button", "act quiet", "Close");
+  close.style.marginLeft = "auto";
+  close.onclick = () => { state.openThreads.delete(t.id); render(); };
+  head.append(close);
+  p.append(head, commentEls(t, state.version));
+  if (!isFrozen(state.version) && !isResolvedOn(t, state.version)) p.append(composerEl(t));
+  return p;
+}
+
+function blockAncestor(node, root) {
+  let n = node.parentElement;
+  while (n && n !== root) {
+    if (n.parentElement === root) return n;
+    n = n.parentElement;
+  }
+  return null;
+}
+
+/* ============================================================
+   14. VARIANT C — focus overlay
+   ============================================================ */
+
+function renderC() {
+  const v = state.version;
+
+  const strip = el("div", "filmstrip" + (state.filmstripOpen ? " open" : ""));
+  for (const ver of VERSIONS) {
+    const b = el("button", null, "v" + ver.n + (ver.n === LATEST ? " · latest" : " · " + ver.uploaded));
+    b.setAttribute("aria-pressed", String(ver.n === v));
+    b.onclick = () => { state.version = ver.n; state.popoverAt = null; render(); };
+    strip.append(b);
+  }
+  app.append(strip);
+
+  const page = el("div", "vC");
+  const wrap = el("div", "book-wrap");
+  const layer = el("div", "hl-layer");
+  const book = el("div", "book");
+  book.innerHTML = VERSIONS[v - 1].body;
+  wrap.append(layer, book);
+  page.append(wrap);
+  app.append(page);
+
+  const index = buildIndex(book);
+  const live = rowsFor(v);
+  let hoverTarget = null;
+
+  const draw = () => {
+    const groups = [{ cls: "r", intervals: unionOf(live.filter(x => x.row.status === "linked").map(x => x.row.text_position)) }];
+    const pop = state.popoverAt;
+    if (pop) {
+      const t = pop.threadIds[state.popoverIx % pop.threadIds.length];
+      const e = live.find(x => x.t.id === t);
+      if (e && e.row.status === "linked") groups.push({ cls: "r-active", intervals: [e.row.text_position] });
+    }
+    if (hoverTarget) groups.push({ cls: "r-target", intervals: [hoverTarget] });
+    paintLayer(layer, index, wrap, groups);
+  };
+
+  book.addEventListener("click", (e) => {
+    const off = offsetFromPoint(index, e.clientX, e.clientY);
+    if (off == null) return;
+    const hits = threadsCovering(v, off);
+    if (!hits.length) { state.popoverAt = null; render(); return; }
+    const origin = wrap.getBoundingClientRect();
+    state.popoverAt = { threadIds: hits.map(t => t.id), x: e.clientX - origin.left, y: e.clientY - origin.top };
+    state.popoverIx = 0;
+    render();
+  });
+
+  if (state.popoverAt) {
+    const pop = popoverC(index, book, tgt => { hoverTarget = tgt; draw(); });
+    if (pop) wrap.append(pop);
+  }
+
+  const corner = el("div", "corner");
+  const unlinkedCount = live.filter(x => x.row.status === "unlinked").length;
+  const strb = el("button", null, "v" + v + (v === LATEST ? " · latest" : ""));
+  strb.onclick = () => { state.filmstripOpen = !state.filmstripOpen; render(); };
+  const idxb = el("button", null, live.length + " Threads" + (unlinkedCount ? " · " + unlinkedCount + " unplaced" : ""));
+  idxb.onclick = () => { state.indexOpen = true; render(); };
+  corner.append(strb, idxb);
+  app.append(corner);
+
+  if (state.indexOpen) app.append(indexC(index, book, tgt => { hoverTarget = tgt; draw(); }));
+
+  requestAnimationFrame(draw);
+  if (!isFrozen(v)) wireSelectionBubble(wrap, book, index, "Comment");
+}
+
+function popoverC(index, bookEl, onHover) {
+  const v = state.version;
+  const pop = state.popoverAt;
+  const ids = pop.threadIds;
+  const t = THREADS.find(x => x.id === ids[state.popoverIx % ids.length]);
+  if (!t) return null;
+  const row = rows[v][t.id];
+  const box = el("div", "popover");
+  box.style.left = Math.max(0, Math.min(pop.x - 40, bookEl.offsetWidth - 40)) + "px";
+  box.style.top = (pop.y + 18) + "px";
+  const head = el("div", "head");
+  head.append(el("span", "role " + t.comments[0].role, t.comments[0].name));
+  if (isResolvedOn(t, v)) head.append(el("span", "resolved-mark", "Resolved"));
+  if (ids.length > 1) {
+    const car = el("div", "carousel");
+    const prev = el("button", null, "‹");
+    prev.onclick = () => { state.popoverIx = (state.popoverIx - 1 + ids.length) % ids.length; render(); };
+    const next = el("button", null, "›");
+    next.onclick = () => { state.popoverIx = (state.popoverIx + 1) % ids.length; render(); };
+    car.append(prev, el("span", null, (state.popoverIx % ids.length) + 1 + " of " + ids.length + " here"), next);
+    head.append(car);
+  }
+  box.append(head, commentEls(t, v));
+  if (!isFrozen(v) && !isResolvedOn(t, v)) box.append(composerEl(t));
+  return box;
+}
+
+function indexC(index, bookEl, onHover) {
+  const v = state.version;
+  const sheet = el("div", "index");
+  const inner = el("div", "inner");
+  const close = el("button", "act", "Close");
+  close.onclick = () => { state.indexOpen = false; render(); };
+  inner.append(close);
+
+  const live = rowsFor(v);
+  const unlinked = live.filter(x => x.row.status === "unlinked");
+  const linked = live.filter(x => x.row.status === "linked");
+
+  if (unlinked.length) {
+    inner.append(el("h3", null, "Unplaced — drag one onto the text to link it"));
+    for (const { t } of unlinked) {
+      const row = el("div", "row unlinked");
+      row.append(el("span", "unlinked-mark", "Unlinked"), el("div", null, firstLine(t)));
+      if (!isFrozen(v)) {
+        row.addEventListener("mousedown", e => {
+          state.indexOpen = false;
+          render();
+          beginLinkDrag(t, e, { index, bookEl, railEl: null, onHover });
+        });
+      }
+      inner.append(row);
+    }
+  }
+  inner.append(el("h3", null, "On the page"));
+  for (const { t, row } of linked) {
+    const r = el("div", "row");
+    const q = TEXT_OF[v].slice(row.text_position[0], row.text_position[1]);
+    r.append(el("div", null, "“" + (q.length > 60 ? q.slice(0, 60) + "…" : q) + "”"));
+    r.append(el("div", null, visibleComments(t, v).length + ""));
+    r.onclick = () => {
+      state.indexOpen = false;
+      state.popoverAt = null;
+      render();
+    };
+    inner.append(r);
+  }
+  sheet.append(inner);
+  return sheet;
+}
+
+/* ============================================================
+   15. The selection gesture, shared: a bubble at the end of a drag.
+   ============================================================ */
+
+function wireSelectionBubble(wrap, bookEl, index, label) {
+  let bubble = null;
+  const clear = () => { if (bubble) { bubble.remove(); bubble = null; } };
+  bookEl.addEventListener("mouseup", () => {
+    setTimeout(() => {
+      clear();
+      const range = selectionRange(index, bookEl);
+      if (!range) return;
+      const pt = selectionAnchorPoint(index, wrap);
+      if (!pt) return;
+      bubble = el("button", "bubble", label);
+      bubble.style.left = pt.x + "px";
+      bubble.style.top = pt.y + "px";
+      bubble.onclick = () => {
+        const t = startThread(range, "");
+        clear();
+      };
+      wrap.append(bubble);
+    }, 0);
+  });
+  bookEl.addEventListener("mousedown", clear);
+}
+
+/* ============================================================
+   16. Prototype furniture: variant bar and the state readout
+   ============================================================ */
+
+function renderProto() {
+  const host = document.getElementById("proto");
+  host.innerHTML = "";
+  const keys = ["A", "B", "C"];
+  const bar = el("div", "proto-bar");
+  const prev = el("button", null, "←");
+  prev.onclick = () => setVariant(keys[(keys.indexOf(state.variant) - 1 + keys.length) % keys.length]);
+  const next = el("button", null, "→");
+  next.onclick = () => setVariant(keys[(keys.indexOf(state.variant) + 1) % keys.length]);
+  const lbl = el("span", "label", state.variant + " — " + VARIANT_NAMES[state.variant]);
+  const st = el("button", null, state.showState ? "hide rows" : "rows");
+  st.onclick = () => { state.showState = !state.showState; renderProto(); };
+  bar.append(prev, lbl, next, st);
+  host.append(bar);
+  if (state.showState) host.append(statePanel());
+}
+
+function statePanel() {
+  const p = el("div", "state-panel");
+  p.append(el("h4", null, "thread_versions — rows for v" + state.version + (isFrozen(state.version) ? " (Frozen)" : " (latest)")));
+  const tbl = document.createElement("table");
+  const hr = document.createElement("tr");
+  ["thread", "status", "text_position", "thread_position", "comments", "state"].forEach(h => {
+    const th = document.createElement("th"); th.textContent = h; hr.append(th);
+  });
+  tbl.append(hr);
+  for (const { t, row } of rowsFor(state.version)) {
+    const tr = document.createElement("tr");
+    const cells = [
+      t.id,
+      row.status,
+      row.status === "linked" ? "[" + row.text_position[0] + "," + row.text_position[1] + ")" : "null",
+      row.status === "unlinked" ? row.thread_position.frac.toFixed(3) : "null",
+      String(visibleComments(t, state.version).length) + "/" + String(t.comments.length),
+      isResolvedOn(t, state.version) ? "resolved" : "open",
+    ];
+    cells.forEach((c, i) => {
+      const td = document.createElement("td");
+      td.textContent = c;
+      if (row.status === "unlinked" && i <= 3) td.className = "u";
+      tr.append(td);
+    });
+    tbl.append(tr);
+  }
+  p.append(tbl);
+  p.append(el("div", null, "extracted text: " + TEXT_OF[state.version].length + " chars"));
+  return p;
+}
+
+function setVariant(k) {
+  state.variant = k;
+  state.selectedThread = null;
+  state.openThreads.clear();
+  state.popoverAt = null;
+  state.indexOpen = false;
+  const u = new URL(location.href);
+  u.searchParams.set("variant", k);
+  history.replaceState(null, "", u);
+  render();
+}
+
+document.addEventListener("keydown", (e) => {
+  const tag = (document.activeElement && document.activeElement.tagName) || "";
+  if (tag === "INPUT" || tag === "TEXTAREA" || (document.activeElement && document.activeElement.isContentEditable)) return;
+  const keys = ["A", "B", "C"];
+  if (e.key === "ArrowLeft") setVariant(keys[(keys.indexOf(state.variant) - 1 + keys.length) % keys.length]);
+  if (e.key === "ArrowRight") setVariant(keys[(keys.indexOf(state.variant) + 1) % keys.length]);
+  if (e.key === "s") { state.showState = !state.showState; renderProto(); }
+});
+
+/* ============================================================
+   17. Render
+   ============================================================ */
+
+function render() {
+  app.innerHTML = "";
+  if (state.variant === "B") renderB();
+  else if (state.variant === "C") renderC();
+  else renderA();
+  renderProto();
+}
+
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(render, 120);
+});
+
+render();
+</script>
