@@ -39,8 +39,8 @@ _Avoid_: reader, beta reader, beta user, commenter
 The passage of a Version's text a Thread is rooted on, fixed by the Reviewer's
 selection when they start it, and shaded on the page so a reader can see the
 Thread is there. Nothing in the uploaded file marks it out, and a Reviewer never
-sees the file's structure. Say **text highlight** where the short form could be
-read as something else.
+sees the file's structure.
+_Also_: text highlight, selected text
 _Avoid_: block, paragraph, node, element, chunk, selection, range
 
 **Thread**:
