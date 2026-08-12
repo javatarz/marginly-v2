@@ -9,7 +9,9 @@ platform; Marginly receives finished HTML and never the source.
 ### The work
 
 **Book**:
-The durable work an Author shares with Reviewers. Persists across every Version.
+The durable work an Author shares with Reviewers. Persists across every Version,
+and carries a **name** the Author sets and may change, unique among that Author's
+Books.
 _Avoid_: manuscript, title, draft
 
 **Version**:
