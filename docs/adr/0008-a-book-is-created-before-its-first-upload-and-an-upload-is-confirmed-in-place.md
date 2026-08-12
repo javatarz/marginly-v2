@@ -64,16 +64,19 @@ Reviewer's discussion disappearing is a worse outcome than an abandoned row.
 ## An Upload is confirmed, not immediate
 
 The Author sees a preview before the Upload commits: the Book's name it is about
-to land on, and the first **twenty segments** of extracted text — ADR-0005's
-extraction, run over the sanitised tree. Plain text in Marginly's own type, with
-no Book CSS, no iframe and no images, so the preview depends on nothing about how
-a Version is rendered.
+to land on, the first **twenty segments** of extracted text — ADR-0005's
+extraction, run over the sanitised tree — and how many Threads would Unlink.
+Plain text in Marginly's own type, with no Book CSS, no iframe and no images, so
+the preview depends on nothing about how a Version is rendered.
 
-That is the entire guard against a misclick, and twenty segments of the wrong
-manuscript is unmistakable. Counting how many Threads *would* Unlink was
-considered and rejected: it is computable before any write, but it answers a
-different question than "is this the right file", and that count is reported once
-the Upload has completed.
+The name and the segments are the guard against a misclick, and twenty segments
+of the wrong manuscript is unmistakable. The Unlink count answers a different
+question — not "is this the right file" but "what does landing it cost" — and
+ADR-0009 shows it because an Upload has no undo. Withholding it until after
+completion, which this decision originally did, told the Author what they had
+already spent rather than what they were about to. The count is a projection:
+ADR-0009 recomputes it authoritatively inside the Upload transaction, and a
+Thread Resolved or started while the Author reads the preview moves it.
 
 After confirmation nothing is removable — no Version deletion, no undo. Removing
 the latest Version would have to reverse the `thread_versions` rows the Upload
@@ -97,9 +100,12 @@ path has a refusal that exists for no other reason.
 misclick and a junk Version whose arrival Unlinks a Book's Threads. The recovery
 is to Upload the right file as the next Version and re-link by hand.
 
-**Abandoned staged bundles accumulate.** They are dead storage counting against
-the project's quota, and nothing deletes them. Whether Supabase Storage offers
-object expiry that would clear them without code is unverified.
+**Abandoned staged bundles accumulate**, but ADR-0009 bounds them at one per
+Book: a Book holds at most one unconfirmed bundle, and a fresh preview clears the
+staging prefix before writing its own. What is left is dead storage counting
+against the project's quota for Books whose Author walked away mid-preview.
+Whether Supabase Storage offers object expiry that would clear those without code
+is unverified.
 
 **A rename can fail.** Uniqueness makes naming a fallible operation on both
 create and rename, so both need the collision path rather than just the create
