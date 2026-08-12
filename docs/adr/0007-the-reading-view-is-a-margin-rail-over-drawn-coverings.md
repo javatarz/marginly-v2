@@ -18,8 +18,13 @@ union.
 Where several Threads share a Block, each gets its own card in the rail, and
 clicking the covered text cycles which one is selected. An Unlinked Thread's card
 sits in the rail at the position carried from the previous Version, scrolling
-with the page, until someone drags it; a placement made by hand is then exempt
-from collision nudging, because where a reader put a card outranks a tidy rail.
+with the page, until someone drags it. A hand placement is a request rather than
+a coordinate: it says where the card wants to sit, and the same collision nudging
+settles it from there. **Two cards never overlap, in any case.** A rail that lets
+them overlap reads as a broken interface rather than a precise one, and nobody
+dragging a card beside a paragraph wants pixel accuracy from it. Nudging is
+downward only, so cards keep the order their positions asked for and a card
+dropped between two others lands between them.
 Re-linking is that same drag, released over the text: the target is the reader's
 selection if they have one, and the sentence under the cursor if they do not.
 There is no toolbar.
