@@ -87,7 +87,7 @@ v4 again, so an old URL shows content it never held.
 The staged bundle lives in **its own bucket**, separate from the one holding
 Versions, and is deleted on confirmation. An abandoned preview leaves an object
 nobody reads, and no sweeper, cron job or lifecycle rule is built for it. The
-separate bucket is what makes that safe: any expiry ever configured there cannot
+separate bucket is what makes that safe: any sweeper ever pointed at it cannot
 reach a Version.
 
 ## Consequences
@@ -104,8 +104,12 @@ is to Upload the right file as the next Version and re-link by hand.
 Book: a Book holds at most one unconfirmed bundle, and a fresh preview clears the
 staging prefix before writing its own. What is left is dead storage counting
 against the project's quota for Books whose Author walked away mid-preview.
-Whether Supabase Storage offers object expiry that would clear those without code
-is unverified.
+Supabase Storage offers no object expiry — its S3 endpoint answers neither
+`PutBucketLifecycleConfiguration` nor `GetBucketLifecycleConfiguration`, and a
+bucket carries no TTL — so clearing them would mean building a sweeper, and none
+is built. Around twenty abandoned bundles at the 50 MB ceiling fill a Free-plan
+project's 1 GB, and exhaustion refuses further Uploads rather than billing for
+them, so the trigger to revisit is a count of Books, not a cost.
 
 **A rename can fail.** Uniqueness makes naming a fallible operation on both
 create and rename, so both need the collision path rather than just the create
