@@ -121,6 +121,12 @@ There is no application-level ceiling. Supabase Storage's global file size limit
 applies, which caps at 50 MB on the Free plan, so that is the effective ceiling
 until someone raises it deliberately.
 
+That is the ceiling on **storing** a bundle. Processing one has its own, and it is
+not a byte count: an Edge Function gets 2 s of CPU time per request, so what a
+preview can parse is a function of how complex the document is, not how large the
+file is. A Book can therefore be small enough to store and too heavy to preview.
+Issue 15 establishes the numbers; the preview's shape follows from issue 16.
+
 ## Consequences
 
 **Immutability is weaker than it looks.** ADR-0003 leans on a Version being

@@ -165,13 +165,23 @@ outside any transaction, and the confirm holds its lock only for row writes.
 
 ## Consequences
 
-**The synchronous preview is unverified against its runtime.** Unzipping a bundle
-of up to 50 MB and parsing a whole document happens inside an Edge Function, which
-caps memory and — separately and more tightly — CPU time. Posting the zip as the
-request body means the function holds the compressed bytes *and* the unzipped tree
-at once, and the function's own body limit, not Supabase Storage's, becomes the
-ceiling on how large a Book can be. If that limit is below 50 MB, ADR-0005's
-statement that Storage's limit is the effective ceiling is wrong.
+**The synchronous preview does not survive its runtime.** Issue 15 measured the
+caps: an Edge Function gets **2 s of CPU time per request**, no plan raises it, and
+exceeding it returns HTTP 546 with no partial result. Unzipping a bundle of up to
+50 MB, parsing a whole document and segmenting its text does not fit, and the cliff
+sits wherever the Author's markup puts it rather than at a byte count — so nothing
+behind a synchronous preview can promise a ceiling on a Book at all. Memory, which
+should be planned at 150 MB, rules out holding the compressed bytes, the unzipped
+tree and a parsed DOM at once. The body limit this ADR feared turned out to be
+undocumented and beside the point.
+
+Two shapes remain — stage the zip in Storage and split the preview across
+invocations, or keep it synchronous and run it off Edge Functions — and issue 16
+settles which. Whichever wins, everything from the confirm onwards stands as
+written: the copy, the one transaction, `set local role`, the privilege-free role
+and the bump's row lock, as do the staging prefix clearing, refuse-on-duplicate and
+one unconfirmed bundle per Book. Only the half before the Author presses confirm is
+open.
 
 **RLS must let an Author write a Version.** The `versions` insert and the
 `latest_version_number` bump run as the Author under their own JWT, so the policy
