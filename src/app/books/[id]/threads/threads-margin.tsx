@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+
 import type { ThreadsLayerState } from "./use-threads-layer";
 import styles from "./threads-layer.module.css";
 
@@ -12,6 +14,11 @@ import styles from "./threads-layer.module.css";
  * this component needing to know anything about the text.
  */
 export function ThreadsMargin({ state }: { state: ThreadsLayerState }) {
+  const marginTopById = useMemo(
+    () => new Map(state.marginPositions.map((p) => [p.id, p.top])),
+    [state.marginPositions],
+  );
+
   return (
     <div className={styles.margin}>
       {state.orderedThreads.map((thread) => (
@@ -23,7 +30,7 @@ export function ThreadsMargin({ state }: { state: ThreadsLayerState }) {
               ? `${styles.threadBox} ${styles.threadBoxSelected}`
               : styles.threadBox
           }
-          style={topStyle(state.marginPositions.find((p) => p.id === thread.threadId)?.top ?? 0)}
+          style={topStyle(marginTopById.get(thread.threadId) ?? 0)}
           onClick={() => state.selectThread(thread.threadId)}
         >
           {thread.comments.map((comment) => (
