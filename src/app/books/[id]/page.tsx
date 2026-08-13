@@ -1,9 +1,12 @@
 import { notFound, redirect } from "next/navigation";
 
 import { SIGN_IN_PATH } from "@/lib/auth/route-access";
+import { renameBookProblemMessage } from "@/lib/books/rename-book-problem";
 import { createClient } from "@/lib/supabase/server";
 
+import { deleteBook } from "./delete-book-action";
 import styles from "./page.module.css";
+import { RenameDialog } from "./rename-dialog";
 
 // Per-request and per-account, the same as the dashboard: the row that comes back
 // depends on `can_read_book` (ADR-0010), which reads the session's cookies.
@@ -23,13 +26,22 @@ export const dynamic = "force-dynamic";
  * A Reviewer can never reach this page while it holds no Versions: ADR-0008 refuses a
  * grant before a Book's first Version exists, so `can_read_book` admits only the
  * Author for as long as this route has anything to render.
+ *
+ * #23 lands rename and delete: both are the Author's own acts, so neither renders for a
+ * Reviewer, and delete renders only while the Book holds no Versions (ADR-0011). The
+ * policies in `20260813200000_rename_and_delete_a_book.sql` are the real boundary; this
+ * check only decides whether the button is worth showing.
  */
 export default async function BookPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ renameError?: string }>;
 }) {
   const { id } = await params;
+  const { renameError } = await searchParams;
+  const renameMessage = renameBookProblemMessage(renameError);
 
   const supabase = await createClient();
   const {
@@ -42,7 +54,7 @@ export default async function BookPage({
 
   const { data: book } = await supabase
     .from("books")
-    .select("id, name")
+    .select("id, name, author_id, latest_version_number")
     .eq("id", id)
     .maybeSingle();
 
@@ -53,10 +65,26 @@ export default async function BookPage({
     notFound();
   }
 
+  const isAuthor = book.author_id === user.id;
+
   return (
     <>
       <header className={styles.header}>
         <h1 className={styles.name}>{book.name}</h1>
+
+        {isAuthor ? (
+          <div className={styles.actions}>
+            <RenameDialog bookId={book.id} currentName={book.name} problemMessage={renameMessage} />
+
+            {book.latest_version_number === 0 ? (
+              <form action={deleteBook.bind(null, book.id)}>
+                <button type="submit" className={styles.delete}>
+                  Delete
+                </button>
+              </form>
+            ) : null}
+          </div>
+        ) : null}
       </header>
 
       <main className={styles.content}>

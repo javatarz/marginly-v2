@@ -1,0 +1,74 @@
+.trigger {
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.dialog {
+  padding: var(--space-6);
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 20rem;
+}
+
+.formRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  font-size: var(--font-size-sm);
+  color: var(--color-ink-muted);
+}
+
+.input {
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  color: var(--color-ink);
+  background: var(--color-bg);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.alert {
+  color: var(--color-danger);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.cancel {
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.button {
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  color: var(--color-accent-contrast);
+  background: var(--color-accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}

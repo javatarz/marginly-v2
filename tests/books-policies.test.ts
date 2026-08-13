@@ -30,6 +30,12 @@ const PRIVATE_TO_OTHER = "aaaaaaaa-0000-4000-8000-000000000004";
 const CREATED_BY_AUTHOR = "aaaaaaaa-0000-4000-8000-000000000005";
 const CREATED_BY_OTHER_AUTHOR = "aaaaaaaa-0000-4000-8000-000000000006";
 
+// #23's fixtures: a zero-Version Book to rename, a zero-Version Book to actually delete,
+// and one holding a Version so "cannot be deleted by any route" has something to refuse.
+const RENAME_TARGET = "aaaaaaaa-0000-4000-8000-000000000007";
+const DELETE_TARGET = "aaaaaaaa-0000-4000-8000-000000000008";
+const WITH_VERSION = "aaaaaaaa-0000-4000-8000-000000000009";
+
 type Client = Awaited<ReturnType<typeof signedInClient>>;
 
 let author: Client;
@@ -53,7 +59,8 @@ beforeAll(async () => {
   asSuperuser(`
     delete from public.books where id in (
       '${OWNED}', '${GRANTED}', '${REVOKED}', '${PRIVATE_TO_OTHER}',
-      '${CREATED_BY_AUTHOR}', '${CREATED_BY_OTHER_AUTHOR}');
+      '${CREATED_BY_AUTHOR}', '${CREATED_BY_OTHER_AUTHOR}',
+      '${RENAME_TARGET}', '${DELETE_TARGET}', '${WITH_VERSION}');
 
     insert into public.books (id, author_id, name, created_at)
     select '${OWNED}', u.id, 'Owned', '2026-08-01T09:00:00Z'
@@ -70,6 +77,18 @@ beforeAll(async () => {
     insert into public.books (id, author_id, name, created_at)
     select '${PRIVATE_TO_OTHER}', u.id, 'Private', '2026-08-04T09:00:00Z'
     from public.users u where u.email = '${OTHER_AUTHOR}';
+
+    insert into public.books (id, author_id, name, created_at)
+    select '${RENAME_TARGET}', u.id, 'Renamable', '2026-08-05T09:00:00Z'
+    from public.users u where u.email = '${AUTHOR}';
+
+    insert into public.books (id, author_id, name, created_at)
+    select '${DELETE_TARGET}', u.id, 'Deletable', '2026-08-06T09:00:00Z'
+    from public.users u where u.email = '${AUTHOR}';
+
+    insert into public.books (id, author_id, name, latest_version_number, created_at)
+    select '${WITH_VERSION}', u.id, 'Holds a Version', 1, '2026-08-07T09:00:00Z'
+    from public.users u where u.email = '${AUTHOR}';
 
     insert into public.book_reviewers (book_id, reviewer_id)
     select '${GRANTED}', u.id from public.users u where u.email = '${REVIEWER}';
@@ -297,5 +316,134 @@ describe("whose address an account may read", () => {
   // account with no live Book at all still has to be able to read its own address.
   it("still shows a revoked Reviewer their own address", async () => {
     expect(await addressesReadBy(revokedOnly, REVOKED_ONLY)).toEqual([REVOKED_ONLY]);
+  });
+});
+
+/**
+ * #23, over ADR-0008: rename is the Author's own act, refused blank or a collision by
+ * the same unique index creating a Book enforces. Nobody else's `update` matches even one
+ * row — the policy's `using` clause filters it out before `with check` ever runs, so a
+ * blocked rename is a silent no-op rather than an error, the same way a `select` a
+ * Reviewer has no access to comes back empty rather than refused.
+ */
+describe("renaming a Book", () => {
+  it("lets an Author rename their own Book", async () => {
+    const { error } = await author
+      .from("books")
+      .update({ name: "Renamed" })
+      .eq("id", RENAME_TARGET);
+
+    expect(error).toBeNull();
+
+    const { data } = await author
+      .from("books")
+      .select("name")
+      .eq("id", RENAME_TARGET)
+      .single();
+    expect(data?.name).toBe("Renamed");
+  });
+
+  it("refuses a rename that collides with another of the Author's own Books, compared trimmed and case-insensitively", async () => {
+    const { error } = await author
+      .from("books")
+      .update({ name: "  owned  " })
+      .eq("id", RENAME_TARGET);
+
+    expect(error).not.toBeNull();
+  });
+
+  it("does not let a Reviewer rename a Book they only review", async () => {
+    const { data, error } = await reviewer
+      .from("books")
+      .update({ name: "Hijacked" })
+      .eq("id", GRANTED)
+      .select();
+
+    expect(error).toBeNull();
+    expect(data).toEqual([]);
+  });
+
+  it("does not let another Author rename a Book they do not own", async () => {
+    const { data, error } = await otherAuthor
+      .from("books")
+      .update({ name: "Stolen" })
+      .eq("id", RENAME_TARGET)
+      .select();
+
+    expect(error).toBeNull();
+    expect(data).toEqual([]);
+  });
+
+  // The grant is column-level (`grant update (name) ...`), not row-level: `latest_version_number`
+  // is bumped only inside the Upload's transaction (#25), never by a client request.
+  it("refuses an Author's own request to change anything but the name", async () => {
+    const { error } = await author
+      .from("books")
+      .update({ latest_version_number: 5 })
+      .eq("id", RENAME_TARGET);
+
+    expect(error).not.toBeNull();
+  });
+});
+
+/**
+ * #23, over ADR-0008: delete undoes the create step and nothing else, so it only ever
+ * removes a Book holding no Versions — enforced by the delete policy's own `using`
+ * clause, not by the app. A blocked delete matches no row, the same silent shape as a
+ * blocked rename above.
+ */
+describe("deleting a Book", () => {
+  it("does not let a Reviewer delete a Book they only review", async () => {
+    const { data, error } = await reviewer.from("books").delete().eq("id", GRANTED).select();
+
+    expect(error).toBeNull();
+    expect(data).toEqual([]);
+  });
+
+  it("does not let another Author delete a Book they do not own", async () => {
+    const { data, error } = await otherAuthor
+      .from("books")
+      .delete()
+      .eq("id", DELETE_TARGET)
+      .select();
+
+    expect(error).toBeNull();
+    expect(data).toEqual([]);
+  });
+
+  it("refuses to delete a Book that holds a Version, even for its own Author", async () => {
+    const { data, error } = await author
+      .from("books")
+      .delete()
+      .eq("id", WITH_VERSION)
+      .select();
+
+    expect(error).toBeNull();
+    expect(data).toEqual([]);
+
+    const { data: stillThere } = await author
+      .from("books")
+      .select("id")
+      .eq("id", WITH_VERSION)
+      .maybeSingle();
+    expect(stillThere?.id).toBe(WITH_VERSION);
+  });
+
+  it("lets an Author delete their own Book that holds no Versions", async () => {
+    const { data, error } = await author
+      .from("books")
+      .delete()
+      .eq("id", DELETE_TARGET)
+      .select();
+
+    expect(error).toBeNull();
+    expect(data).toHaveLength(1);
+
+    const { data: goneNow } = await author
+      .from("books")
+      .select("id")
+      .eq("id", DELETE_TARGET)
+      .maybeSingle();
+    expect(goneNow).toBeNull();
   });
 });
