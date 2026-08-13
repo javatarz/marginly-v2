@@ -1,11 +1,16 @@
-# The reading view is a margin rail over drawn highlights
+# The reading view is a margin of Threads over drawn Highlights
 
 `Readme.md` asks for Threads beside the text, each tied to its Highlight, with
 every commenter's role shown. Three reading views were built to react to. The
-**margin rail** wins: a fixed right-hand column of Thread cards, each pinned to
+**margin** wins: a fixed right-hand column of Threads, each pinned to
 the vertical position of the text its Thread is rooted on and nudged down only far
-enough to stop cards overlapping. Marginly is a desktop surface, and a narrow
+enough to stop Threads overlapping. Marginly is a desktop surface, and a narrow
 layout is not a design constraint.
+
+ADR-0014 retires the words "card" and "rail", which this decision used throughout
+and `CONTEXT.md` never defined. A Thread is a Thread wherever it is drawn, and the
+column it is drawn in is the margin. The filename keeps its old slug because closed
+issues link to it.
 
 A Highlight is **drawn as rectangles over the text at read time**, computed from
 the Version's stored `text_position` and thrown away on the next paint. Marginly
@@ -14,20 +19,22 @@ Before drawing, every Linked Thread's range on the Version is merged into a unio
 interval set and only that union is drawn, so overlap and nesting leave no trace;
 selecting a Thread draws that Thread's own range on top of the union.
 
-Where several Threads share a Highlight, each gets its own card in the rail, and
-clicking the highlighted text cycles which one is selected. An Unlinked Thread's
-card sits in the rail at the position carried from the previous Version, scrolling
+Where several Threads share a Highlight, each gets its own place in the margin, and
+clicking the highlighted text cycles which one is selected. An Unlinked Thread
+sits in the margin at the position carried from the previous Version, scrolling
 with the page, until someone drags it. A hand placement is a request rather than a
-coordinate: it says where the card wants to sit, and the same collision nudging
-settles it from there. **Two cards never overlap, in any case.** A rail that lets
+coordinate: it says where the Thread wants to sit, and the same collision nudging
+settles it from there. **Two Threads never overlap, in any case.** A margin that lets
 them overlap reads as a broken interface rather than a precise one, and nobody
-dragging a card beside a paragraph wants pixel accuracy from it. Nudging is
-downward only, so cards keep the order their positions asked for and a card
-dropped between two others lands between them.
+dragging a Thread beside a paragraph wants pixel accuracy from it. Nudging is
+downward only, so Threads keep the order their positions asked for and a Thread
+dropped between two others lands between them. ADR-0014 makes that position one
+character offset and adds the tie-break: same offset settles in creation order.
 
 Re-linking is that same drag, released over the text: the target is the reader's
 selection if they have one, and the sentence under the cursor if they do not.
-There is no toolbar.
+There is no toolbar. ADR-0014 has an Unlinked Thread display the text it kept, so a
+reader knows what to look for, and lets the Author drag as well as a Reviewer.
 
 Starting a Thread is a plain text drag anywhere in the Version, ending in one
 affordance at the end of the selection. It is never a per-element control,
@@ -46,7 +53,7 @@ the latest Version is the only one where the whole live discussion is present.
 
 ## Considered Options
 
-**Inline expansion** put no rail on the page: a counted marker sat in the flow at
+**Inline expansion** put nothing in the margin: a counted marker sat in the flow at
 the end of each Highlight, and opening a Thread pushed the text down to make room,
 the way a code review reads. It was rejected on a mechanism, not a taste.
 ADR-0006 makes a character range into the extracted text the only thing that
@@ -84,7 +91,7 @@ the wrong place. The extraction rules and the index are one thing implemented
 twice, and they are only correct together.
 
 **Highlights are geometry, so nothing holds them in place for free.** They are
-redrawn on resize, on a font or zoom change, and whenever a card expands. A
+redrawn on resize, on a font or zoom change, and whenever a Thread expands. A
 Version's own CSS can move text after first paint, and the shading has to follow —
 ADR-0012 shrinks that last case to image loading alone, since no Author stylesheet
 or web font renders any more, and the surviving `width` and `height` attributes on
@@ -95,12 +102,14 @@ both out of the extracted text, so no character of any range maps inside them.
 `Readme.md`'s promise that a selection never covers an image or a table is not a
 constraint anyone enforces; it is already true.
 
-**An Unlinked Thread's carried placement drifts.** It is derived from a fraction
-of the extracted text, per ADR-0006's requirement that a placement be computable
-from a character range, and a fraction of text is not a fraction of page height —
-figures and tables take vertical space and contribute no characters. Proximity is
-accepted as enough, because the placement exists to be dragged. How the placement
-is actually expressed is still open.
+**An Unlinked Thread's carried placement drifts.** ADR-0014 settles how it is
+expressed — one character offset into the Version's extracted text, per ADR-0006's
+requirement that a placement be computable from a character range — and the drift is
+not what this decision first guessed. Nothing is rescaled, so a figure taking
+vertical space cannot move a placement, and within one Version there is no drift at
+all. The drift is across Versions: text added above a Thread pushes it nowhere, so
+the Thread holds its number while the Book moves under it. Proximity is accepted as
+enough, because the placement exists to be dragged.
 
 **Marginly's interface is drawn over the Book's content, so the two share a
 document.** ADR-0005 requires that a Book's CSS never reach Marginly's own
@@ -111,7 +120,7 @@ anything that puts the Book in a document the reading view cannot measure.
 root, the Book is a fragment of this page, and every client rectangle, selection
 and offset is ordinary same-document work.
 
-**The whole page scrolls, under a bar that stays.** Book text and rail scroll
+**The whole page scrolls, under a bar that stays.** Book text and margin scroll
 together as one long page — which is what "scrolling with the page" above already
 assumed — and ADR-0011's header bar sticks to the top of the viewport rather than
 scrolling away with the content. This keeps the maths for drawing Highlights to a
@@ -119,8 +128,8 @@ single offset and leaves the reader with ordinary browser scrolling. It was chos
 over a fixed shell with the Book scrolling in its own pane, which would have made
 every Highlight position a per-scroll recomputation.
 
-**Mobile is a choice not to serve.** The rail's whole idea is alignment to text,
-and that has no narrow-screen equivalent — a rail on a phone is an index with
+**Mobile is a choice not to serve.** The margin's whole idea is alignment to text,
+and that has no narrow-screen equivalent — a margin on a phone is an index with
 extra steps. Serving a phone later means a second reading view, not a responsive
 version of this one.
 

@@ -18,7 +18,7 @@ create table thread_versions (
   version_number  int  not null,
   status          text not null check (status in ('linked','unlinked')),
   text_position   int4range,
-  thread_position jsonb,
+  thread_position int4,
   primary key (thread_id, version_number),
   foreign key (thread_id, book_id)      references threads(id, book_id) on delete cascade,
   foreign key (book_id, version_number) references versions(book_id, number),
@@ -157,3 +157,9 @@ Unlinks a Thread it computes a starting placement from the previous Version's
 `text_position`, or carries the previous placement forward if that Version was
 Unlinked too. A placement expressed in rendered pixels or DOM coordinates could not be
 computed this way.
+
+**ADR-0014 fills the column and narrows its type.** A placement is one character
+offset into the Version's extracted text, so `thread_position` is `int4` and the
+`jsonb` this decision reserved is gone. The carry above is unchanged in shape: the
+starting placement is the **start** of the previous Version's `text_position`, and a
+carried placement is copied unchanged, clamped to the new text's length.

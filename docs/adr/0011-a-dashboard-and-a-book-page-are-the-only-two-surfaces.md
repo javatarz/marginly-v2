@@ -149,7 +149,7 @@ answer is the bar or the dashboard's create — not a settings page.
 
 **Issue 12 grows.** ADR-0007 left it open how a Book's CSS is kept out of
 Marginly's interface, and that interface is now controls the Author acts through,
-not only cards they read. A Book's stylesheet reaching a rename dialog or a
+not only Threads they read. A Book's stylesheet reaching a rename dialog or a
 revoke is a correctness problem, not a cosmetic one.
 
 **The switcher's state is not shareable and not durable.** One address per Book

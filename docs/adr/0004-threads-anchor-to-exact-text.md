@@ -53,6 +53,13 @@ to correct a wrong link, not to park a Thread.
 An anchor stores the selected text and its containing paragraph's text as the
 matching inputs, plus the resolved offset as the matching *output* — the offset
 is never matched against, it is what the reading view draws the highlight from.
+ADR-0014 also displays the selected text on an Unlinked Thread, which needs no
+further storage: it is already kept for the retry.
+
+ADR-0014 amends "wherever a Reviewer drags it" to **either role**. The Author edited
+the text offline, so after a copy-edit pass they are the person who knows where each
+discussion belongs, and ADR-0010 keys access to a Book rather than to a role. It also
+settles what a placement is — one character offset into the Version's extracted text.
 
 Linking, re-linking and unlinking are mutations, so ADR-0003 confines them to the
 latest Version. Every earlier Version keeps the link state it held when the next

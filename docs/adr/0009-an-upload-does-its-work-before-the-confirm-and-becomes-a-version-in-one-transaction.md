@@ -191,8 +191,8 @@ shape has to permit both.
 preview and shown plainly, without hedging, because the drift needs a Reviewer to
 act in the seconds before the confirm. When it does drift, the count reported
 after completion differs from the one the Author agreed to, and neither is stored —
-both are rendered once and discarded. The durable signal is ADR-0007's rail, which
-parks every Unlinked card beside the text it used to hold.
+both are rendered once and discarded. The durable signal is ADR-0007's margin, which
+parks every Unlinked Thread beside the text it used to hold.
 
 **A failed confirm is invisible in the data and recoverable by the Author.** No
 Version, no rows, and the preview still standing. The only trace is whatever the
