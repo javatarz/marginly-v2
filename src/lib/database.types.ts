@@ -140,6 +140,10 @@ export type Database = {
     }
     Functions: {
       can_read_book: { Args: { book: string }; Returns: boolean }
+      grant_access: {
+        Args: { book: string; email: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

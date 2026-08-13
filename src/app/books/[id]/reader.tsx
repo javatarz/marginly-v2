@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import type { Person } from "@/lib/books/people-list";
 import { shouldFollowLatestVersion } from "@/lib/reading/follow-latest";
 
+import { PeoplePanel } from "./people-panel";
 import { RenameDialog } from "./rename-dialog";
 import { UploadForm } from "./upload-form";
 import pageStyles from "./page.module.css";
@@ -41,6 +43,8 @@ export function Reader({
   initialVersionNumber,
   initialHtml,
   renameMessage,
+  people,
+  peopleMessage,
 }: {
   bookId: string;
   bookName: string;
@@ -50,6 +54,8 @@ export function Reader({
   initialVersionNumber: number;
   initialHtml: string;
   renameMessage?: string;
+  people: readonly Person[];
+  peopleMessage?: string;
 }) {
   const [versionNumber, setVersionNumber] = useState(initialVersionNumber);
   const [html, setHtml] = useState(initialHtml);
@@ -176,6 +182,13 @@ export function Reader({
         ) : null}
 
         <div className={pageStyles.actions}>
+          <PeoplePanel
+            bookId={bookId}
+            isAuthor={isAuthor}
+            people={people}
+            problemMessage={peopleMessage}
+          />
+
           {isAuthor ? (
             <RenameDialog bookId={bookId} currentName={bookName} problemMessage={renameMessage} />
           ) : null}

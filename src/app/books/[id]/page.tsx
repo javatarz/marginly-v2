@@ -1,10 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 
 import { SIGN_IN_PATH } from "@/lib/auth/route-access";
+import { grantAccessProblemMessage } from "@/lib/books/grant-access-problem";
 import { renameBookProblemMessage } from "@/lib/books/rename-book-problem";
 import { createClient } from "@/lib/supabase/server";
 
 import { deleteBook } from "./delete-book-action";
+import { fetchPeopleList } from "./people";
+import { PeoplePanel } from "./people-panel";
 import { readVersion } from "./read-version";
 import { Reader } from "./reader";
 import styles from "./page.module.css";
@@ -24,22 +27,23 @@ export const dynamic = "force-dynamic";
  * read, and ADR-0011's switcher has nothing to switch yet either.
  *
  * Once a Version exists, `Reader` (#27) takes over the header and the content: it
- * opens on the latest Version (ADR-0007), and Upload, rename and the switcher all work
- * from there regardless of which Version is on screen (ADR-0011). People (#28) has no
- * act built yet, so it is not in the header — this page's rename/delete access checks
- * are UI-only; `20260813200000_rename_and_delete_a_book.sql`'s policies are the real
- * boundary, same as `can_read_book` is for reading at all.
+ * opens on the latest Version (ADR-0007), and Upload, rename, People and the switcher
+ * all work from there regardless of which Version is on screen (ADR-0011). This page's
+ * rename/delete/grant access checks are UI-only; `20260813200000_rename_and_delete_a_book.sql`
+ * and `20260814020000_grant_and_revoke_access.sql`'s policies (and `grant_access`
+ * itself) are the real boundary, same as `can_read_book` is for reading at all.
  */
 export default async function BookPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ renameError?: string }>;
+  searchParams: Promise<{ renameError?: string; peopleError?: string }>;
 }) {
   const { id } = await params;
-  const { renameError } = await searchParams;
+  const { renameError, peopleError } = await searchParams;
   const renameMessage = renameBookProblemMessage(renameError);
+  const peopleMessage = grantAccessProblemMessage(peopleError);
 
   const supabase = await createClient();
   const {
@@ -64,6 +68,7 @@ export default async function BookPage({
   }
 
   const isAuthor = book.author_id === user.id;
+  const people = await fetchPeopleList(supabase, { id: book.id, authorId: book.author_id });
 
   if (book.latest_version_number === 0) {
     return (
@@ -71,17 +76,26 @@ export default async function BookPage({
         <header className={styles.header}>
           <h1 className={styles.name}>{book.name}</h1>
 
-          {isAuthor ? (
-            <div className={styles.actions}>
-              <RenameDialog bookId={book.id} currentName={book.name} problemMessage={renameMessage} />
+          <div className={styles.actions}>
+            <PeoplePanel
+              bookId={book.id}
+              isAuthor={isAuthor}
+              people={people}
+              problemMessage={peopleMessage}
+            />
 
-              <form action={deleteBook.bind(null, book.id)}>
-                <button type="submit" className={styles.delete}>
-                  Delete
-                </button>
-              </form>
-            </div>
-          ) : null}
+            {isAuthor ? (
+              <>
+                <RenameDialog bookId={book.id} currentName={book.name} problemMessage={renameMessage} />
+
+                <form action={deleteBook.bind(null, book.id)}>
+                  <button type="submit" className={styles.delete}>
+                    Delete
+                  </button>
+                </form>
+              </>
+            ) : null}
+          </div>
         </header>
 
         <main className={styles.content}>
@@ -118,11 +132,18 @@ export default async function BookPage({
         <header className={styles.header}>
           <h1 className={styles.name}>{book.name}</h1>
 
-          {isAuthor ? (
-            <div className={styles.actions}>
+          <div className={styles.actions}>
+            <PeoplePanel
+              bookId={book.id}
+              isAuthor={isAuthor}
+              people={people}
+              problemMessage={peopleMessage}
+            />
+
+            {isAuthor ? (
               <RenameDialog bookId={book.id} currentName={book.name} problemMessage={renameMessage} />
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </header>
 
         <main className={styles.content}>
@@ -146,6 +167,8 @@ export default async function BookPage({
       initialVersionNumber={book.latest_version_number}
       initialHtml={html}
       renameMessage={renameMessage}
+      people={people}
+      peopleMessage={peopleMessage}
     />
   );
 }
