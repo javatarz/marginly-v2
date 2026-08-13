@@ -52,7 +52,7 @@ beforeAll(async () => {
     on conflict (book_id, reviewer_id) do nothing;
 
     insert into public.books (id, author_id, name, latest_version_number)
-    select '${TWO_VERSION_BOOK}', u.id, 'Two Versions', 2
+    select '${TWO_VERSION_BOOK}', u.id, 'Two Versions', 1
     from public.users u where u.email = '${AUTHOR}'
     on conflict (id) do update set author_id = excluded.author_id, name = excluded.name;
 
@@ -61,6 +61,8 @@ beforeAll(async () => {
     where not exists (
       select 1 from public.versions where book_id = '${TWO_VERSION_BOOK}' and version_number = 1
     );
+
+    update public.books set latest_version_number = 2 where id = '${TWO_VERSION_BOOK}';
 
     insert into public.versions (book_id, version_number, hash)
     select '${TWO_VERSION_BOOK}', 2, 'thread-test-two-v2'
