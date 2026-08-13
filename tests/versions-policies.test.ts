@@ -49,8 +49,8 @@ beforeAll(async () => {
     -- a row this statement was always going to discard. Guarding the source row with
     -- "where not exists" skips the insert — and the trigger — entirely once the seed
     -- is already there.
-    insert into public.versions (book_id, version_number)
-    select '${OWN_BOOK}', 1
+    insert into public.versions (book_id, version_number, hash)
+    select '${OWN_BOOK}', 1, 'seed-hash-own-book-v1'
     where not exists (
       select 1 from public.versions
       where book_id = '${OWN_BOOK}' and version_number = 1
@@ -65,8 +65,8 @@ beforeAll(async () => {
     from public.users u where u.email = '${OTHER_AUTHOR}'
     on conflict (id) do update set author_id = excluded.author_id, name = excluded.name;
 
-    insert into public.versions (book_id, version_number)
-    select '${OTHER_BOOK}', 1
+    insert into public.versions (book_id, version_number, hash)
+    select '${OTHER_BOOK}', 1, 'seed-hash-other-book-v1'
     where not exists (
       select 1 from public.versions
       where book_id = '${OTHER_BOOK}' and version_number = 1
@@ -141,7 +141,7 @@ describe("landing a Version", () => {
 
     const { error } = await author
       .from("versions")
-      .insert({ book_id: OWN_BOOK, version_number: next });
+      .insert({ book_id: OWN_BOOK, version_number: next, hash: `test-hash-${next}` });
 
     expect(error).toBeNull();
   });
@@ -151,7 +151,7 @@ describe("landing a Version", () => {
 
     const { error } = await author
       .from("versions")
-      .insert({ book_id: OWN_BOOK, version_number: wrong });
+      .insert({ book_id: OWN_BOOK, version_number: wrong, hash: `test-hash-${wrong}` });
 
     expect(error).not.toBeNull();
   });
@@ -161,7 +161,7 @@ describe("landing a Version", () => {
 
     const { error } = await reviewer
       .from("versions")
-      .insert({ book_id: OWN_BOOK, version_number: next });
+      .insert({ book_id: OWN_BOOK, version_number: next, hash: `test-hash-${next}` });
 
     expect(error).not.toBeNull();
   });
@@ -169,7 +169,7 @@ describe("landing a Version", () => {
   it("refuses an Author landing a Version on another Author's Book", async () => {
     const { error } = await author
       .from("versions")
-      .insert({ book_id: OTHER_BOOK, version_number: 1_000_000 });
+      .insert({ book_id: OTHER_BOOK, version_number: 1_000_000, hash: "test-hash-1000000" });
 
     expect(error).not.toBeNull();
   });

@@ -10,6 +10,8 @@ export type PlannedObject = {
 const INDEX_HTML = "index.html";
 const EXTRACTED_TEXT = "text.txt";
 const ZIP = "upload.zip";
+const PENDING = "pending";
+const MANIFEST = "manifest.json";
 
 /**
  * What a Version's Storage prefix holds, once the preview seam has already sanitised
@@ -42,6 +44,54 @@ export function stagingZipPath(bookId: string): string {
 }
 
 /**
+ * Where a preview stages its sanitised bundle — `{book_id}/pending/…` — for a later,
+ * separate confirm call to copy into a Version (ADR-0009/ADR-0015). A Book holds at
+ * most one: a fresh preview clears this whole prefix before writing its own.
+ */
+export function pendingPrefix(bookId: string): string {
+  return `${bookId}/${PENDING}`;
+}
+
+export function pendingObjectPath(bookId: string, relativePath: string): string {
+  return `${pendingPrefix(bookId)}/${relativePath}`;
+}
+
+/**
+ * `{book_id}/pending/manifest.json` — the one file that makes the pending prefix
+ * self-describing. There is deliberately no job record in the database (ADR-0015), so
+ * the confirm has to learn what the preview staged, and a later preview has to learn
+ * what an earlier one left behind, from Storage alone: the manifest's `paths` is both
+ * "what to copy" for the confirm and "what to delete" for the next preview's clear.
+ */
+export function pendingManifestPath(bookId: string): string {
+  return `${pendingPrefix(bookId)}/${MANIFEST}`;
+}
+
+export type PendingManifest = {
+  readonly hash: string;
+  readonly paths: readonly string[];
+};
+
+export function planPendingManifest(
+  objects: readonly PlannedObject[],
+  hash: string,
+): PendingManifest {
+  return { hash, paths: objects.map((object) => object.path) };
+}
+
+/**
+ * ADR-0015: an Upload whose hash matches the latest Version is refused outright, with
+ * no preview to confirm and no override. A Book holding no Version yet has nothing to
+ * match against, so `null` never counts as a duplicate.
+ */
+export function isDuplicateOfLatest(
+  newHash: string,
+  latestHash: string | null,
+): boolean {
+  return latestHash !== null && latestHash === newHash;
+}
+
+/**
  * `{book_id}/{version_number}/…` — the Version's prefix, computed and never supplied
  * by a caller. Used both for the Version's real objects (in the `versions` bucket) and
  * for staging this invocation's own sanitised output on its way there (in `staging`):
@@ -70,29 +120,27 @@ export type StorageCleanupStep = {
 };
 
 /**
- * What `commitVersion` (upload/index.ts) must remove from Storage once its transaction
- * has settled, isolated from the Storage calls themselves so the decision — which
- * bucket, which paths, on success versus failure — is unit-testable without a Storage
- * client. On success only this invocation's own staged copies are stale, since the
- * `versions` copies are now the Version. On failure both sets are, since the copies
- * never became anything (ADR-0009: a copy or staging failure rolls the bump back; this
- * best-effort delete is the optimisation on top, not the guarantee).
+ * What `commitVersion` (upload-confirm/index.ts) must remove from Storage once its
+ * transaction has settled, isolated from the Storage calls themselves so the decision —
+ * which bucket, which paths, on success versus failure — is unit-testable without a
+ * Storage client.
+ *
+ * On success the whole staged bundle (the raw zip, the manifest and every pending
+ * object) is now stale, since the `versions` copies are the Version. On failure none of
+ * it is touched: ADR-0009/ADR-0015 want a failed confirm to leave the preview standing,
+ * so the Author retries without re-previewing or re-sending up to 50 MB, and only the
+ * copies that did land in `versions` — dead bytes no row points at — are worth a
+ * best-effort compensating delete (the transaction rollback is the guarantee; this is
+ * the optimisation on top).
  */
-export function storageCleanupPlan(
+export function confirmCleanupPlan(
   outcome: "committed" | "failed",
-  stagedPaths: readonly string[],
+  stagingPaths: readonly string[],
   copiedPaths: readonly string[],
 ): readonly StorageCleanupStep[] {
   if (outcome === "committed") {
-    return stagedPaths.length > 0 ? [{ bucket: "staging", paths: stagedPaths }] : [];
+    return stagingPaths.length > 0 ? [{ bucket: "staging", paths: stagingPaths }] : [];
   }
 
-  const steps: StorageCleanupStep[] = [];
-  if (copiedPaths.length > 0) {
-    steps.push({ bucket: "versions", paths: copiedPaths });
-  }
-  if (stagedPaths.length > 0) {
-    steps.push({ bucket: "staging", paths: stagedPaths });
-  }
-  return steps;
+  return copiedPaths.length > 0 ? [{ bucket: "versions", paths: copiedPaths }] : [];
 }

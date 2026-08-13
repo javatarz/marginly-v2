@@ -374,6 +374,19 @@ describe("renaming a Book", () => {
     expect(data).toEqual([]);
   });
 
+  // The rename grant is column-level (`grant update (name) ...`). `latest_version_number`
+  // is column-grantable too (#25), for the Upload transaction's raw connection to bump it
+  // as the Author — so it no longer proves this rule; `author_id` is never grantable at all.
+  it("refuses an Author's own request to change a column no grant covers", async () => {
+    const otherAuthorId = await accountId(otherAuthor);
+
+    const { error } = await author
+      .from("books")
+      .update({ author_id: otherAuthorId })
+      .eq("id", RENAME_TARGET);
+
+    expect(error).not.toBeNull();
+  });
 });
 
 /**

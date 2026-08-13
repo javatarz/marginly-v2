@@ -11,13 +11,13 @@ describe("describing why an Upload failed", () => {
 
   it("falls back when the error carries no Response context", async () => {
     expect(await describeUploadError(new Error("network down"))).toBe(
-      "Could not create the Version. Try again.",
+      "Could not complete the Upload. Try again.",
     );
   });
 
   it("falls back when the error is not an object at all", async () => {
     expect(await describeUploadError("boom")).toBe(
-      "Could not create the Version. Try again.",
+      "Could not complete the Upload. Try again.",
     );
   });
 
@@ -25,7 +25,7 @@ describe("describing why an Upload failed", () => {
     const error = { context: new Response("not json") };
 
     expect(await describeUploadError(error)).toBe(
-      "Could not create the Version. Try again.",
+      "Could not complete the Upload. Try again.",
     );
   });
 
@@ -33,7 +33,7 @@ describe("describing why an Upload failed", () => {
     const error = { context: new Response(JSON.stringify({ ok: false })) };
 
     expect(await describeUploadError(error)).toBe(
-      "Could not create the Version. Try again.",
+      "Could not complete the Upload. Try again.",
     );
   });
 });

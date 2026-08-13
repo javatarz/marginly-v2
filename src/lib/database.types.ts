@@ -106,18 +106,21 @@ export type Database = {
         Row: {
           book_id: string
           created_at: string
+          hash: string
           id: string
           version_number: number
         }
         Insert: {
           book_id: string
           created_at?: string
+          hash: string
           id?: string
           version_number: number
         }
         Update: {
           book_id?: string
           created_at?: string
+          hash?: string
           id?: string
           version_number?: number
         }
