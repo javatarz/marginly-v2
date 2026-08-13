@@ -1,0 +1,5 @@
+-- The migration path itself, with no schema in it.
+--
+-- Marginly's tables arrive with the Books and access rules (issue #21). This file
+-- exists so a clean checkout has a migration to apply: `supabase db reset` records
+-- it, and `npm run db:types` generates src/lib/database.types.ts against it.

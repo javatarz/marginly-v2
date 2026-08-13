@@ -7,6 +7,26 @@ Vocabulary is defined in [`CONTEXT.md`](./CONTEXT.md). Decisions are recorded in
 [`docs/adr/`](./docs/adr/). Open questions are tracked on
 [the map](https://github.com/javatarz/marginly-v2/issues/1).
 
+## Running it
+
+Two runtimes in one repo, sharing no code (ADR-0013): a Next.js App Router app on
+Node in `src/`, and Supabase Edge Functions on Deno in `supabase/functions/`, with
+plain SQL migrations beside them.
+
+```
+npm install                # the Node runtime
+supabase start             # the local stack (Docker)
+supabase db reset          # apply the migrations
+npm run db:types           # regenerate src/lib/database.types.ts (checked in)
+npm run verify             # the gate: no leaked keys, lint, both typechecks, stale types, both suites
+npm run build && bash scripts/restart-app.sh   # a production build, served by next start
+bash scripts/deploy.sh     # verify, db push, functions deploy, build, restart
+```
+
+`npm run verify` is the only gate — there is no pull request — so it runs before
+every commit. A migration and its regenerated types are committed together, or the
+gate fails.
+
 ## Content
 
 A Book is written and edited entirely outside Marginly. Nothing is editable in
