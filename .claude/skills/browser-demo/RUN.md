@@ -12,11 +12,11 @@ Run section 3 of the plan to completion first, with no narration — the audienc
 4. Ask the user for the staging **hand-offs** from section 4 of the plan — the sign-ins, grants, and settings that have to be true before beat 1. Ask for them in one message, so they make a single pass at the keyboard instead of being interrupted repeatedly, and wait for each observable before treating it as done.
 5. Take one screenshot of the opening tab and check it against what beat 1 expects to see.
 
-Then tell the user staging is complete and the demo starts on their word. Wait for it.
+Then tell the user staging is complete and move straight into beat 1 — no pause for a go-ahead.
 
 ## The presentation loop
 
-For each beat in the sheet, in order:
+Run every beat continuously, straight through the sheet: no pause between beats and no pause between features, only the tempo holds below and a stop for a genuine hand-off. For each beat in the sheet, in order:
 
 1. **Narrate** — print the beat's narration as terminal text before acting, in the present tense, as the person using the app ("I'm opening the reviewer's thread to see what changed"). One to three sentences.
 2. **Act** — fire the beat's single browser call against the beat's target.
