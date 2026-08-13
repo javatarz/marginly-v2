@@ -14,6 +14,11 @@
 # this can serve a stale schema against current code, and the failure stays silent until
 # someone happens to exercise the path that needed the missing table or grant.
 #
+# It stops and restarts the stack first, unconditionally — a long-lived edge-runtime
+# container can keep serving an old function's code (e.g. one since renamed) after a
+# `supabase functions` change, with no error until someone hits that path. Restarting
+# is the only way to guarantee the container matches what's on disk.
+#
 #   npm run app:local
 #
 # Environment:
@@ -23,8 +28,12 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+echo "==> supabase stop / start  (fresh containers, so edge functions can't be stale)"
+supabase stop
+supabase start
+
 if ! status=$(supabase status --output json 2>/dev/null); then
-  echo "The local stack is not running. Start it first:  supabase start" >&2
+  echo "The local stack did not come up after supabase start." >&2
   exit 1
 fi
 
