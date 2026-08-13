@@ -174,15 +174,16 @@ describe("what a dashboard row says about a Book", () => {
     expect(onlyRow(view.owned).versionsHeld).toBe("7 Versions");
   });
 
-  // Rendered from the instant in UTC rather than the reader's zone: a server component
-  // and a browser in different zones would otherwise disagree about the date shown.
-  it("says when the latest Version was Uploaded", () => {
+  // Left as the raw instant, unformatted: which calendar day that reads as depends on
+  // the reader's zone, decided client-side by `formatUploadDate` — never here on the
+  // server, where every reader's zone would be flattened to one.
+  it("passes through the latest Version's Upload instant unformatted", () => {
     const view = presentDashboard({
       accountId: ME,
       books: [book({ versionCount: 1, latestUploadedAt: "2026-08-10T23:30:00Z" })],
     });
 
-    expect(onlyRow(view.owned).latestUpload).toBe("10 Aug 2026");
+    expect(onlyRow(view.owned).latestUpload).toBe("2026-08-10T23:30:00Z");
   });
 });
 

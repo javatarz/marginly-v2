@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 
 import { createBook } from "./create-book-action";
 import styles from "./page.module.css";
+import { UploadDate } from "./upload-date";
 
 // Per-request and per-account: it reads the session's cookies and the Books the policies
 // let that account see. There is nothing here to prerender at build time.
@@ -158,7 +159,11 @@ function BookRows({ list }: { list: BookList }) {
             <span className={styles.name}>{row.name}</span>
             <span className={styles.meta}>
               <span>{row.versionsHeld}</span>
-              {row.latestUpload ? <span>Uploaded {row.latestUpload}</span> : null}
+              {row.latestUpload ? (
+                <span>
+                  Uploaded <UploadDate value={row.latestUpload} />
+                </span>
+              ) : null}
             </span>
           </Link>
         </li>

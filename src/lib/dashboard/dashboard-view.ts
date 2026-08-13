@@ -29,7 +29,12 @@ export type BookRow = {
   name: string;
   /** How many Versions the Book holds, in words — never a bare zero. */
   versionsHeld: string;
-  /** When the latest Version was Uploaded, or null while the Book holds none. */
+  /**
+   * The instant the latest Version was Uploaded, as ISO text, or null while the Book
+   * holds none. Left unformatted here on purpose: which calendar day that reads as
+   * depends on the reader's zone, and this runs on the server (`formatUploadDate` in
+   * `upload-date.ts` does the formatting, client-side, in the reader's own zone).
+   */
   latestUpload: string | null;
 };
 
@@ -55,16 +60,6 @@ const NO_BOOKS_OWNED = "You have no Books yet. Create one to start sharing your 
 // empty list that says nothing reads as a broken page.
 const NOTHING_SHARED =
   "Nothing has been shared with you yet. The Author will be in touch.";
-
-// Fixed rather than the reader's locale, and UTC rather than their zone: this renders on
-// the server, and a date that disagrees with the browser's would be a bug nobody can see
-// from one machine.
-const UPLOAD_DATE = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  timeZone: "UTC",
-});
 
 /**
  * Which Upload a Book's dashboard row dates itself by: the newest `created_at` among
@@ -127,10 +122,7 @@ function toRow(entry: BookRecord): BookRow {
     id: entry.id,
     name: entry.name,
     versionsHeld: versionsHeld(entry.versionCount),
-    latestUpload:
-      entry.latestUploadedAt === null
-        ? null
-        : UPLOAD_DATE.format(new Date(entry.latestUploadedAt)),
+    latestUpload: entry.latestUploadedAt,
   };
 }
 
