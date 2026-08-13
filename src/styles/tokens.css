@@ -16,6 +16,10 @@
   --color-accent: #6b4a35;
   --color-accent-contrast: #fdfbf8;
   --color-danger: #8a3324;
+  /* A Highlight's uniform shading over the union of every Linked Thread's range
+     (ADR-0007), and the stronger shade a selected Thread draws on top of it. */
+  --color-highlight: rgb(107 74 53 / 18%);
+  --color-highlight-selected: rgb(107 74 53 / 38%);
 
   /* Type */
   --font-reading: Palatino, "Palatino Linotype", "Iowan Old Style", Georgia, serif;
@@ -28,6 +32,8 @@
   --leading-base: 1.4;
   --leading-reading: 1.7;
   --measure-reading: 38rem;
+  /* ADR-0007's margin: a fixed right-hand column, wide enough for a Comment's prose. */
+  --margin-width: 18rem;
 
   /* Space */
   --space-1: 0.25rem;

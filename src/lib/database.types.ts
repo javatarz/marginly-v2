@@ -87,6 +87,131 @@ export type Database = {
         }
         Relationships: []
       }
+      comments: {
+        Row: {
+          author_id: string
+          body: string
+          book_id: string
+          created_at: string
+          id: string
+          thread_id: string
+          version_number: number
+        }
+        Insert: {
+          author_id: string
+          body: string
+          book_id: string
+          created_at?: string
+          id?: string
+          thread_id: string
+          version_number: number
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          book_id?: string
+          created_at?: string
+          id?: string
+          thread_id?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_thread_id_book_id_fkey"
+            columns: ["thread_id", "book_id"]
+            isOneToOne: false
+            referencedRelation: "threads"
+            referencedColumns: ["id", "book_id"]
+          },
+          {
+            foreignKeyName: "comments_book_id_version_number_fkey"
+            columns: ["book_id", "version_number"]
+            isOneToOne: false
+            referencedRelation: "versions"
+            referencedColumns: ["book_id", "version_number"]
+          },
+        ]
+      }
+      threads: {
+        Row: {
+          book_id: string
+          created_at: string
+          created_by: string
+          created_version_number: number
+          id: string
+          paragraph_text: string
+          selected_text: string
+        }
+        Insert: {
+          book_id: string
+          created_at?: string
+          created_by: string
+          created_version_number: number
+          id?: string
+          paragraph_text: string
+          selected_text: string
+        }
+        Update: {
+          book_id?: string
+          created_at?: string
+          created_by?: string
+          created_version_number?: number
+          id?: string
+          paragraph_text?: string
+          selected_text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "threads_book_id_created_version_number_fkey"
+            columns: ["book_id", "created_version_number"]
+            isOneToOne: false
+            referencedRelation: "versions"
+            referencedColumns: ["book_id", "version_number"]
+          },
+        ]
+      }
+      thread_versions: {
+        Row: {
+          book_id: string
+          status: string
+          text_position: string | null
+          thread_id: string
+          thread_position: number | null
+          version_number: number
+        }
+        Insert: {
+          book_id: string
+          status: string
+          text_position?: string | null
+          thread_id: string
+          thread_position?: number | null
+          version_number: number
+        }
+        Update: {
+          book_id?: string
+          status?: string
+          text_position?: string | null
+          thread_id?: string
+          thread_position?: number | null
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "thread_versions_thread_id_book_id_fkey"
+            columns: ["thread_id", "book_id"]
+            isOneToOne: false
+            referencedRelation: "threads"
+            referencedColumns: ["id", "book_id"]
+          },
+          {
+            foreignKeyName: "thread_versions_book_id_version_number_fkey"
+            columns: ["book_id", "version_number"]
+            isOneToOne: false
+            referencedRelation: "versions"
+            referencedColumns: ["book_id", "version_number"]
+          },
+        ]
+      }
       users: {
         Row: {
           email: string
@@ -143,6 +268,27 @@ export type Database = {
       grant_access: {
         Args: { book: string; email: string }
         Returns: undefined
+      }
+      start_thread: {
+        Args: {
+          book: string
+          body: string
+          paragraph_text: string
+          range_end: number
+          range_start: number
+          selected_text: string
+        }
+        Returns: string
+      }
+      version_threads: {
+        Args: { book: string; version_number: number }
+        Returns: {
+          comments: Json
+          created_at: string
+          created_by: string
+          text_position: string
+          thread_id: string
+        }[]
       }
     }
     Enums: {

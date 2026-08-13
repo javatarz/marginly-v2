@@ -1,0 +1,133 @@
+/*
+ * ADR-0007: Highlights are drawn as rectangles over the text at read time — this file
+ * never sizes or positions anything itself (`top`/`left`/`width`/`height` are set
+ * inline, from live geometry a design token cannot hold), only how a rectangle, a
+ * Thread box or the composer looks once placed.
+ */
+
+.highlightLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.highlight {
+  position: absolute;
+  background: var(--color-highlight);
+  border-radius: var(--radius-sm);
+}
+
+.highlightSelected {
+  position: absolute;
+  background: var(--color-highlight-selected);
+  border-radius: var(--radius-sm);
+}
+
+.startThreadButton {
+  position: absolute;
+  z-index: 3;
+  padding: var(--space-1) var(--space-3);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-accent-contrast);
+  background: var(--color-accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.composer {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 16rem;
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 var(--space-1) var(--space-4) var(--color-border);
+}
+
+.composerInput {
+  min-height: 4rem;
+  padding: var(--space-2);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-ink);
+  background: var(--color-bg);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+}
+
+.composerError {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}
+
+.composerActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.composerCancel {
+  padding: var(--space-1) var(--space-3);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.composerSubmit {
+  padding: var(--space-1) var(--space-3);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-accent-contrast);
+  background: var(--color-accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.composerSubmit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.margin {
+  position: relative;
+  flex: 0 0 var(--margin-width);
+}
+
+.threadBox {
+  position: absolute;
+  left: 0;
+  right: 0;
+  padding: var(--space-3);
+  font-size: var(--font-size-sm);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.threadBoxSelected {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 var(--border-width) var(--color-accent);
+}
+
+.comment {
+  margin: 0 0 var(--space-2);
+  line-height: var(--leading-base);
+}
+
+.comment:last-child {
+  margin-bottom: 0;
+}

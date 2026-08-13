@@ -7,6 +7,9 @@ import { shouldFollowLatestVersion } from "@/lib/reading/follow-latest";
 
 import { PeoplePanel } from "./people-panel";
 import { RenameDialog } from "./rename-dialog";
+import { ThreadsMargin } from "./threads/threads-margin";
+import { ThreadsOverlay } from "./threads/threads-overlay";
+import { useThreadsLayer } from "./threads/use-threads-layer";
 import { UploadForm } from "./upload-form";
 import pageStyles from "./page.module.css";
 import styles from "./reader.module.css";
@@ -62,6 +65,13 @@ export function Reader({
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [switchState, setSwitchState] = useState<SwitchState>({ kind: "idle" });
   const contentRef = useRef<HTMLDivElement>(null);
+
+  const threadsLayer = useThreadsLayer({
+    bookId,
+    versionNumber,
+    isLatest: versionNumber === latestVersionNumber,
+    contentRef,
+  });
 
   const versionNumberRef = useRef(versionNumber);
   useEffect(() => {
@@ -195,17 +205,24 @@ export function Reader({
         </div>
       </header>
 
-      <main className={pageStyles.content}>
+      <main className={styles.page}>
         {isAuthor ? <UploadForm bookId={bookId} /> : null}
 
-        <div
-          ref={contentRef}
-          className={styles.reading}
-          // The stored HTML is already sanitised at Upload time (ADR-0005) and never
-          // carries an Author stylesheet (ADR-0012) — this only injects the rewritten
-          // markup, it does not sanitise it again.
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
+        <div className={styles.layout}>
+          <div className={styles.readingColumn}>
+            <div
+              ref={contentRef}
+              className={styles.reading}
+              // The stored HTML is already sanitised at Upload time (ADR-0005) and never
+              // carries an Author stylesheet (ADR-0012) — this only injects the rewritten
+              // markup, it does not sanitise it again.
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+            <ThreadsOverlay state={threadsLayer} />
+          </div>
+
+          <ThreadsMargin state={threadsLayer} />
+        </div>
       </main>
     </>
   );

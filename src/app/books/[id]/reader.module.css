@@ -68,6 +68,33 @@
   margin: 0 0 0 auto;
 }
 
+.page {
+  padding: var(--space-6);
+}
+
+/*
+ * ADR-0007's margin: a fixed right-hand column beside the reading column, both
+ * starting at the same top so a Thread's `top` (computed relative to `.readingColumn`
+ * in useThreadsLayer) lines up with the text it is rooted on. The whole page scrolls
+ * as one — neither column scrolls on its own — because both sit in normal flow here;
+ * only the Highlight rectangles and the Thread boxes inside them are positioned
+ * absolutely, relative to these two.
+ */
+.layout {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-6);
+  max-width: calc(var(--measure-reading) + var(--space-6) + var(--margin-width));
+  margin: 0 auto;
+}
+
+.readingColumn {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: var(--measure-reading);
+}
+
 .reading {
   line-height: var(--leading-reading);
 }
