@@ -38,6 +38,10 @@ export async function GET(request: NextRequest) {
 function at(request: NextRequest, path: string): URL {
   const [pathname, search] = path.split("?");
   const url = request.nextUrl.clone();
+  const host = request.headers.get("host");
+  if (host) {
+    url.host = host;
+  }
   url.pathname = pathname ?? SIGNED_IN_HOME;
   url.search = search ? `?${search}` : "";
   return url;
