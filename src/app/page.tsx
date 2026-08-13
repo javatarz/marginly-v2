@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
@@ -140,12 +141,14 @@ function BookRows({ list }: { list: BookList }) {
   return (
     <ul className={styles.list}>
       {list.rows.map((row) => (
-        <li key={row.id} className={styles.row}>
-          <span className={styles.name}>{row.name}</span>
-          <span className={styles.meta}>
-            <span>{row.versionsHeld}</span>
-            {row.latestUpload ? <span>Uploaded {row.latestUpload}</span> : null}
-          </span>
+        <li key={row.id}>
+          <Link href={`/books/${row.id}`} className={styles.row}>
+            <span className={styles.name}>{row.name}</span>
+            <span className={styles.meta}>
+              <span>{row.versionsHeld}</span>
+              {row.latestUpload ? <span>Uploaded {row.latestUpload}</span> : null}
+            </span>
+          </Link>
         </li>
       ))}
     </ul>

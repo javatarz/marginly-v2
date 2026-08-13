@@ -175,6 +175,48 @@ if (linkMatch) {
   const html = await home.text();
   check("the signed-in page shows the address", html.includes(PERSON), `${home.status}`);
 
+  // 4a. A Book on the dashboard is reachable — the dashboard is the product's only
+  // discovery route (ADR-0011), so a row with no way into its Book page is a dead end.
+  //
+  // The insert has to go in as the Author, under RLS — books grants no INSERT to
+  // service_role (CODING_STANDARDS.md's boundary holds here too), so a second, fresh
+  // magic link mints a session for that one write. The token already consumed above
+  // by /auth/confirm can't be reused for this.
+  const admin = createClient(stack.API_URL, stack.SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data: userList } = await admin.auth.admin.listUsers();
+  const person = userList.users.find((entry) => entry.email === PERSON);
+
+  const { data: secondLink } = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email: PERSON,
+  });
+  const asAuthor = createClient(stack.API_URL, stack.ANON_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  await asAuthor.auth.verifyOtp({
+    type: "email",
+    token_hash: secondLink.properties.hashed_token,
+  });
+
+  const bookId = "00000000-0000-4000-8000-000000000000";
+  await asAuthor.from("books").delete().eq("id", bookId);
+  await asAuthor.from("books").insert({ id: bookId, name: "Smoke Check Book", author_id: person.id });
+
+  const homeWithBook = await fetch(`${APP_URL}/`, {
+    headers: { cookie: jar.join("; ") },
+    redirect: "manual",
+  });
+  const htmlWithBook = await homeWithBook.text();
+  check(
+    "a Book's dashboard row links to its own page",
+    htmlWithBook.includes(`href="/books/${bookId}"`),
+    `${homeWithBook.status}`,
+  );
+
+  await asAuthor.from("books").delete().eq("id", bookId);
+
   // 5. A used link is refused, with the one generic problem.
   const reused = await fetch(link, { redirect: "manual" });
   const reusedTo = reused.headers.get("location") ?? "";
