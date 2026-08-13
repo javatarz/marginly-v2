@@ -45,6 +45,13 @@ echo "==> supabase migration up  (every pending migration, against the running s
 supabase migration up
 
 echo
+echo "==> supabase db query --file supabase/seed.sql  (idempotent: re-applies seed.sql, which"
+echo "    otherwise only runs on db reset — see seed.sql's own comment — so a migration that"
+echo "    creates a role here, on a stack running since before that migration existed, would"
+echo "    otherwise leave the role without the password seed.sql sets)"
+supabase db query --local --file supabase/seed.sql
+
+echo
 echo "==> next build  (against $NEXT_PUBLIC_SUPABASE_URL)"
 npm run build
 
