@@ -117,18 +117,60 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "comments_book_id_version_number_fkey"
+            columns: ["book_id", "version_number"]
+            isOneToOne: false
+            referencedRelation: "versions"
+            referencedColumns: ["book_id", "version_number"]
+          },
+          {
             foreignKeyName: "comments_thread_id_book_id_fkey"
             columns: ["thread_id", "book_id"]
             isOneToOne: false
             referencedRelation: "threads"
             referencedColumns: ["id", "book_id"]
           },
+        ]
+      }
+      thread_versions: {
+        Row: {
+          book_id: string
+          status: string
+          text_position: unknown
+          thread_id: string
+          thread_position: number | null
+          version_number: number
+        }
+        Insert: {
+          book_id: string
+          status: string
+          text_position?: unknown
+          thread_id: string
+          thread_position?: number | null
+          version_number: number
+        }
+        Update: {
+          book_id?: string
+          status?: string
+          text_position?: unknown
+          thread_id?: string
+          thread_position?: number | null
+          version_number?: number
+        }
+        Relationships: [
           {
-            foreignKeyName: "comments_book_id_version_number_fkey"
+            foreignKeyName: "thread_versions_book_id_version_number_fkey"
             columns: ["book_id", "version_number"]
             isOneToOne: false
             referencedRelation: "versions"
             referencedColumns: ["book_id", "version_number"]
+          },
+          {
+            foreignKeyName: "thread_versions_thread_id_book_id_fkey"
+            columns: ["thread_id", "book_id"]
+            isOneToOne: false
+            referencedRelation: "threads"
+            referencedColumns: ["id", "book_id"]
           },
         ]
       }
@@ -168,47 +210,12 @@ export type Database = {
             referencedRelation: "versions"
             referencedColumns: ["book_id", "version_number"]
           },
-        ]
-      }
-      thread_versions: {
-        Row: {
-          book_id: string
-          status: string
-          text_position: string | null
-          thread_id: string
-          thread_position: number | null
-          version_number: number
-        }
-        Insert: {
-          book_id: string
-          status: string
-          text_position?: string | null
-          thread_id: string
-          thread_position?: number | null
-          version_number: number
-        }
-        Update: {
-          book_id?: string
-          status?: string
-          text_position?: string | null
-          thread_id?: string
-          thread_position?: number | null
-          version_number?: number
-        }
-        Relationships: [
           {
-            foreignKeyName: "thread_versions_thread_id_book_id_fkey"
-            columns: ["thread_id", "book_id"]
+            foreignKeyName: "threads_book_id_fkey"
+            columns: ["book_id"]
             isOneToOne: false
-            referencedRelation: "threads"
-            referencedColumns: ["id", "book_id"]
-          },
-          {
-            foreignKeyName: "thread_versions_book_id_version_number_fkey"
-            columns: ["book_id", "version_number"]
-            isOneToOne: false
-            referencedRelation: "versions"
-            referencedColumns: ["book_id", "version_number"]
+            referencedRelation: "books"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -271,8 +278,8 @@ export type Database = {
       }
       start_thread: {
         Args: {
-          book: string
           body: string
+          book: string
           paragraph_text: string
           range_end: number
           range_start: number
@@ -286,7 +293,7 @@ export type Database = {
           comments: Json
           created_at: string
           created_by: string
-          text_position: string
+          text_position: unknown
           thread_id: string
         }[]
       }

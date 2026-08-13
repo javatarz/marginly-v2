@@ -44,7 +44,7 @@ export async function fetchVersionThreads(
     threadId: row.thread_id,
     createdBy: row.created_by,
     createdAt: row.created_at,
-    range: parseTextPosition(row.text_position),
+    range: parseTextPosition(row.text_position as string),
     comments: ((row.comments as RawComment[] | null) ?? []).map((comment) => ({
       id: comment.id,
       authorId: comment.author_id,
