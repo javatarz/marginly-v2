@@ -374,16 +374,6 @@ describe("renaming a Book", () => {
     expect(data).toEqual([]);
   });
 
-  // The grant is column-level (`grant update (name) ...`), not row-level: `latest_version_number`
-  // is bumped only inside the Upload's transaction (#25), never by a client request.
-  it("refuses an Author's own request to change anything but the name", async () => {
-    const { error } = await author
-      .from("books")
-      .update({ latest_version_number: 5 })
-      .eq("id", RENAME_TARGET);
-
-    expect(error).not.toBeNull();
-  });
 });
 
 /**

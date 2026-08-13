@@ -1,0 +1,82 @@
+.switcherWrapper {
+  position: relative;
+}
+
+.switcherButton {
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.switcherPanel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 2;
+  min-width: 16rem;
+  margin: 0;
+  padding: var(--space-2);
+  list-style: none;
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 var(--space-1) var(--space-4) var(--color-border);
+}
+
+.versionItem {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  text-align: left;
+  color: var(--color-ink);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.versionItemActive {
+  background: var(--color-bg);
+  font-weight: bold;
+}
+
+.versionNumber {
+  flex: none;
+}
+
+.versionDate {
+  color: var(--color-ink-muted);
+  font-size: var(--font-size-sm);
+}
+
+.latestBadge {
+  margin-left: auto;
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+}
+
+.switchError {
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  margin: 0 0 0 auto;
+}
+
+.reading {
+  line-height: var(--leading-reading);
+}
+
+.missingAsset {
+  display: block;
+  padding: var(--space-2);
+  color: var(--color-ink-muted);
+  font-style: italic;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+}

@@ -5,6 +5,8 @@ import { renameBookProblemMessage } from "@/lib/books/rename-book-problem";
 import { createClient } from "@/lib/supabase/server";
 
 import { deleteBook } from "./delete-book-action";
+import { readVersion } from "./read-version";
+import { Reader } from "./reader";
 import styles from "./page.module.css";
 import { UploadForm } from "./upload-form";
 import { RenameDialog } from "./rename-dialog";
@@ -16,27 +18,17 @@ export const dynamic = "force-dynamic";
 /**
  * The Book page (ADR-0011) — one address per Book, and the only place a Book is read.
  *
- * #22 lands only the create act and the page it opens onto, so every Book reaching
- * this route today holds zero Versions: the header bar carries the Book's name and
- * nothing else yet. ADR-0011's Version switcher has nothing to switch before a
- * Version exists, and Upload, rename, People and delete are #25, #23 and #28's acts —
- * building stub controls for them here would ship buttons that do nothing. Each of
- * those tickets amends this header when it lands its own act, the same way #36
- * expects a later ticket to amend a guard rather than work around it.
+ * A zero-Version Book still shows only its name and, for the Author, Upload and
+ * delete: ADR-0008 refuses a Reviewer grant before a Book's first Version exists, so
+ * `can_read_book` admits only the Author for as long as this route has nothing to
+ * read, and ADR-0011's switcher has nothing to switch yet either.
  *
- * A Reviewer can never reach this page while it holds no Versions: ADR-0008 refuses a
- * grant before a Book's first Version exists, so `can_read_book` admits only the
- * Author for as long as this route has anything to render.
- *
- * #23 lands rename and delete: both are the Author's own acts, so neither renders for a
- * Reviewer, and delete renders only while the Book holds no Versions (ADR-0011). The
- * policies in `20260813200000_rename_and_delete_a_book.sql` are the real boundary; this
- * check only decides whether the button is worth showing.
- *
- * #25 lands the Upload act itself, straight through with no preview or confirm (#26
- * inserts that step later) and no reading view yet (a later ticket renders a Version's
- * HTML) — so a Book with Versions shows only how many it holds, beside the same
- * control that landed the first one.
+ * Once a Version exists, `Reader` (#27) takes over the header and the content: it
+ * opens on the latest Version (ADR-0007), and Upload, rename and the switcher all work
+ * from there regardless of which Version is on screen (ADR-0011). People (#28) has no
+ * act built yet, so it is not in the header — this page's rename/delete access checks
+ * are UI-only; `20260813200000_rename_and_delete_a_book.sql`'s policies are the real
+ * boundary, same as `can_read_book` is for reading at all.
  */
 export default async function BookPage({
   params,
@@ -73,41 +65,87 @@ export default async function BookPage({
 
   const isAuthor = book.author_id === user.id;
 
-  return (
-    <>
-      <header className={styles.header}>
-        <h1 className={styles.name}>{book.name}</h1>
+  if (book.latest_version_number === 0) {
+    return (
+      <>
+        <header className={styles.header}>
+          <h1 className={styles.name}>{book.name}</h1>
 
-        {isAuthor ? (
-          <div className={styles.actions}>
-            <RenameDialog bookId={book.id} currentName={book.name} problemMessage={renameMessage} />
+          {isAuthor ? (
+            <div className={styles.actions}>
+              <RenameDialog bookId={book.id} currentName={book.name} problemMessage={renameMessage} />
 
-            {book.latest_version_number === 0 ? (
               <form action={deleteBook.bind(null, book.id)}>
                 <button type="submit" className={styles.delete}>
                   Delete
                 </button>
               </form>
-            ) : null}
-          </div>
-        ) : null}
-      </header>
+            </div>
+          ) : null}
+        </header>
 
-      <main className={styles.content}>
-        <p className={styles.prompt}>
-          {book.latest_version_number === 0
-            ? "This Book holds no Versions yet. Upload the first one to begin."
-            : versionsHeldMessage(book.latest_version_number)}
-        </p>
+        <main className={styles.content}>
+          <p className={styles.prompt}>This Book holds no Versions yet. Upload the first one to begin.</p>
 
-        <UploadForm bookId={book.id} />
-      </main>
-    </>
+          {isAuthor ? <UploadForm bookId={book.id} /> : null}
+        </main>
+      </>
+    );
+  }
+
+  const { data: versions } = await supabase
+    .from("versions")
+    .select("version_number, created_at")
+    .eq("book_id", book.id)
+    .order("version_number", { ascending: false });
+
+  // `latest_version_number` is bumped by the Upload transaction alongside its `versions`
+  // insert (ADR-0009), but RLS also grants an Author `update (latest_version_number)`
+  // directly (ADR-0010, for that same transaction to work under RLS) — nothing at the
+  // schema level stops a stray direct write from bumping the counter with no matching
+  // Version. That is the Author's own mistake to have made, on their own Book, and
+  // never a Reviewer's to hit (`can_read_book` already gated the row above); reading
+  // still shouldn't 500 forever over it, so this degrades to a plain message instead of
+  // the ordinary reading view, with Rename left reachable to keep the Book recoverable.
+  const html =
+    versions && versions.length > 0
+      ? await readVersion(supabase, book.id, book.latest_version_number)
+      : null;
+
+  if (html === null) {
+    return (
+      <>
+        <header className={styles.header}>
+          <h1 className={styles.name}>{book.name}</h1>
+
+          {isAuthor ? (
+            <div className={styles.actions}>
+              <RenameDialog bookId={book.id} currentName={book.name} problemMessage={renameMessage} />
+            </div>
+          ) : null}
+        </header>
+
+        <main className={styles.content}>
+          <p className={styles.prompt}>This Book&apos;s latest Version could not be read.</p>
+        </main>
+      </>
+    );
+  }
+
+  return (
+    <Reader
+      key={book.id}
+      bookId={book.id}
+      bookName={book.name}
+      isAuthor={isAuthor}
+      versions={(versions ?? []).map((version) => ({
+        versionNumber: version.version_number,
+        createdAt: version.created_at,
+      }))}
+      latestVersionNumber={book.latest_version_number}
+      initialVersionNumber={book.latest_version_number}
+      initialHtml={html}
+      renameMessage={renameMessage}
+    />
   );
-}
-
-function versionsHeldMessage(count: number): string {
-  return count === 1
-    ? "This Book holds 1 Version."
-    : `This Book holds ${count} Versions.`;
 }
