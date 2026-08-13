@@ -53,7 +53,26 @@ The **staging** work — everything that must be true before beat 1 so the demo 
 
 Every fixture needs a creation step written out. A fixture named without a way to create it is the plan's most common hole.
 
-### 4. Beat sheet
+### 4. Hand-offs
+
+A **hand-off** is a step the user performs at their own keyboard while you wait. Some belong to them because only a human should do them, some because only a human can.
+
+These are theirs, every time:
+
+- Passwords, one-time codes, API keys, and anything else that authenticates.
+- Payment details, and any purchase or transfer.
+- Personal data typed into a form, and the submit that sends it.
+- Creating an account, accepting terms, granting an OAuth or extension permission, answering a consent banner.
+- A CAPTCHA or other bot check.
+- Anything outward-facing or hard to undo: sending a message, publishing, deleting real data.
+- Browser, extension, or system settings.
+- Anything the user said they want to do themselves.
+
+List each one as a row: when it happens (during staging, or at which beat), the exact words you will use to ask, and the observable that tells you they are done and you may resume. Some hand-offs are staging — a sign-in that has to happen before beat 1 — and some are beats in front of the audience, which is fine: a presenter saying "I'll let you put your password in" reads as normal.
+
+Where a hand-off can be avoided rather than performed, prefer avoiding it: a pre-seeded test account the user named, a fixture created by command, a demo route that skips the paywall. Plan the hand-off for what genuinely needs their hands.
+
+### 5. Beat sheet
 
 One numbered table row per beat, grouped under a heading per feature:
 
@@ -62,15 +81,15 @@ One numbered table row per beat, grouped under a heading per feature:
 | 3 | "Now I'll upload the annotated PDF the reviewer sent back." | click | `Upload` button, page header | screenshot shows file picker |
 
 - **Narration** — the words you will say, written out. Say what the user is trying to do and why it matters, then what to watch on screen.
-- **Action** — one browser interaction. A beat that needs two clicks is two beats.
+- **Action** — one browser interaction, or `hand-off` when the user acts instead of you. A beat that needs two clicks is two beats.
 - **Target** — how the element is identified: visible label, role, position on the page. Enough that you can find it in a screenshot without guessing.
 - **Confirm** — the observable that proves the beat worked, only for beats that claim a visible result. Beats that merely move the cursor along skip it.
 
-### 5. Teardown
+### 6. Teardown
 
-The reset commands from section 3, plus which tabs and tab groups close.
+The reset commands from section 3, plus which tabs and tab groups close. Mark any teardown step that is itself a hand-off — signing out of a real account, revoking an access grant.
 
-### 6. Off-script plan
+### 7. Off-script plan
 
 Per feature: the one or two ways it most plausibly misbehaves live, and the recovery you would take. Written in advance, because live is the worst time to invent one.
 
@@ -82,11 +101,12 @@ The plan is done when:
 - Every beat has all five columns filled, with narration written as spoken words.
 - Every fixture in section 3 has a creation command and appears in the reset command.
 - Every browser tool named in a beat appears in the Toolbelt.
+- Every step that touches credentials, payment, consent, a bot check, settings, or anything hard to undo appears in section 4 as a hand-off, with the words to ask and the observable that resumes the demo.
 
 Walk the sheet once against this list and fix what it catches.
 
 ## Gate
 
-Show the user the beat count, the fixture list, and the total estimated run time. Ask them to approve or amend the plan.
+Show the user the beat count, the fixture list, the hand-offs they will be asked to perform and when, and the total estimated run time. Ask them to approve or amend the plan.
 
 On approval, read `RUN.md` and present.

@@ -4,7 +4,7 @@
     {
       "id": 0,
       "name": "saucedemo-purchase-journey",
-      "prompt": "demo the Swag Labs store at https://www.saucedemo.com to the QA candidates at 4 — signing in, sorting the products by price, adding two items to the cart, and finishing checkout. one window, step by step so they can follow.",
+      "prompt": "demo the Swag Labs store at https://www.saucedemo.com to the QA candidates at 4 \u2014 signing in, sorting the products by price, adding two items to the cart, and finishing checkout. one window, step by step so they can follow.",
       "expected_output": "A demo-<date>.md plan with a beat-sheet section per named feature, credentials and checkout data staged as fixtures, tab group defined, tempo, teardown and per-feature off-script recovery; presentation held for approval.",
       "files": [],
       "assertions": [
@@ -22,13 +22,14 @@
         "Holds back from presenting and puts the plan to the user for approval first",
         "Beat sheet covers all four named features: sign in, sort by price, add two items, complete checkout",
         "Login credentials are staged as a fixture with their source named, not invented",
-        "Checkout form data (first name, last name, postal code) is specified in advance"
+        "Checkout form data (first name, last name, postal code) is specified in advance",
+        "Signing in is listed as a hand-off for the user, with the words to ask and the observable that resumes the demo"
       ]
     },
     {
       "id": 1,
       "name": "todomvc-filter-scope",
-      "prompt": "quick one for standup tomorrow: demo just the Active and Completed filters on https://todomvc.com/examples/react/dist/ — nothing else, I've got 5 minutes.",
+      "prompt": "quick one for standup tomorrow: demo just the Active and Completed filters on https://todomvc.com/examples/react/dist/ \u2014 nothing else, I've got 5 minutes.",
       "expected_output": "A single-feature plan whose scope stays on the two filters, with pre-demo seeding of todos (at least one active, one completed) written as explicit steps.",
       "files": [],
       "assertions": [
@@ -45,14 +46,15 @@
         "Element targets are grounded in what the live page shows rather than guessed labels",
         "Holds back from presenting and puts the plan to the user for approval first",
         "Scope stays on the Active and Completed filters without adding features the request did not name",
-        "Seeds todos before beat 1 — at least one left active and one marked completed — as staging, separate from the demoed beats",
-        "Run time fits the stated 5 minute slot, with the estimate given at the approval gate"
+        "Seeds todos before beat 1 \u2014 at least one left active and one marked completed \u2014 as staging, separate from the demoed beats",
+        "Run time fits the stated 5 minute slot, with the estimate given at the approval gate",
+        "States that this demo needs no hand-offs, rather than leaving the question unanswered"
       ]
     },
     {
       "id": 2,
       "name": "saucedemo-failure-paths",
-      "prompt": "show the team the unhappy paths on https://www.saucedemo.com — the locked out user hitting the wall, and a checkout that gets rejected because the postal code is blank. want them to see the actual error messages.",
+      "prompt": "show the team the unhappy paths on https://www.saucedemo.com \u2014 the locked out user hitting the wall, and a checkout that gets rejected because the postal code is blank. want them to see the actual error messages.",
       "expected_output": "A plan covering both failure paths, with the expected error text as each beat's Confirm, and a stated distinction between an error the demo means to show and the demo going off-script.",
       "files": [],
       "assertions": [
@@ -70,7 +72,8 @@
         "Holds back from presenting and puts the plan to the user for approval first",
         "Beat sheet covers both failure paths: the locked out user and the rejected checkout",
         "Each failure beat's Confirm names the error message the audience should read on screen",
-        "Plan separates an error it means to demonstrate from the demo going off-script, so a shown error is not treated as a failure"
+        "Plan separates an error it means to demonstrate from the demo going off-script, so a shown error is not treated as a failure",
+        "Both sign-ins are listed as hand-offs for the user, with the words to ask and the observable that resumes the demo"
       ]
     }
   ]

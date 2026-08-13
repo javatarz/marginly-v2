@@ -9,7 +9,8 @@ Run section 3 of the plan to completion first, with no narration — the audienc
 1. Start the app; confirm the base URL serves.
 2. Create every fixture; verify each exists by reading it back, not by trusting the command's exit code.
 3. Open the **tab group**: create the group with the plan's name and colour, then open the plan's tabs into it in load order, ending on the tab beat 1 starts from. If the browser tool surface has no group-create tool, open the tabs into one fresh window and say the group's name in the opening narration.
-4. Take one screenshot of the opening tab and check it against what beat 1 expects to see.
+4. Ask the user for the staging **hand-offs** from section 4 of the plan — the sign-ins, grants, and settings that have to be true before beat 1. Ask for them in one message, so they make a single pass at the keyboard instead of being interrupted repeatedly, and wait for each observable before treating it as done.
+5. Take one screenshot of the opening tab and check it against what beat 1 expects to see.
 
 Then tell the user staging is complete and the demo starts on their word. Wait for it.
 
@@ -23,6 +24,14 @@ For each beat in the sheet, in order:
 4. **Confirm** — for beats with a Confirm column, take the screenshot or page read and say in one line what the audience should now see on screen.
 
 Strike the beat off in `demo-<date>.md` as you complete it, so the sheet is a live record of where the demo stands.
+
+### Hand-off beats
+
+A beat whose Action is `hand-off` swaps step 2: narrate it, then ask the user to do it themselves and stop until they have. Say what you need them to do, why it is theirs, and what you are watching for — "this one's yours: sign in as the reviewer, and tell me when the dashboard is up." Then wait. Do not fill the silence with other beats, and do not attempt the action yourself when the wait feels long.
+
+An unplanned hand-off can appear mid-demo — a login page you did not expect, a consent banner, a bot check, a payment step. Treat it exactly the same way: name it to the audience, hand it to the user, wait, then carry on from the next beat. Anything that authenticates, pays, consents, publishes, or deletes is theirs even when the plan failed to predict it.
+
+If they decline or cannot do it, mark that feature blocked with the reason and move to the next one, the same as any other blocked feature.
 
 ## Human tempo
 
@@ -53,9 +62,9 @@ Retry a failed beat once. On a second failure, mark the feature blocked with wha
 ## Close
 
 1. Say one closing line per feature: what the audience just saw it do.
-2. Run the plan's teardown — reset commands, then close the demo tabs and the tab group.
-3. Report: beats presented, beats off-script with reasons, features blocked, fixtures left behind if teardown could not remove them.
+2. Run the plan's teardown — reset commands, then close the demo tabs and the tab group. Ask the user for any teardown step that is theirs: signing out of a real account, revoking a grant.
+3. Report: beats presented, beats off-script with reasons, features blocked, hand-offs performed and any the user declined, and fixtures left behind if teardown could not remove them.
 
 ## Completion criterion
 
-Every beat in `demo-<date>.md` is marked struck, off-script with a reason, or blocked with what you saw — and the report names each off-script and blocked one to the user.
+Every beat in `demo-<date>.md` is marked struck, off-script with a reason, or blocked with what you saw — and the report names each off-script and blocked one to the user. Every hand-off, planned or not, was performed by the user rather than by you.
