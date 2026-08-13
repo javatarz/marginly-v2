@@ -1,0 +1,77 @@
+{
+  "skill_name": "browser-demo",
+  "evals": [
+    {
+      "id": 0,
+      "name": "saucedemo-purchase-journey",
+      "prompt": "demo the Swag Labs store at https://www.saucedemo.com to the QA candidates at 4 — signing in, sorting the products by price, adding two items to the cart, and finishing checkout. one window, step by step so they can follow.",
+      "expected_output": "A demo-<date>.md plan with a beat-sheet section per named feature, credentials and checkout data staged as fixtures, tab group defined, tempo, teardown and per-feature off-script recovery; presentation held for approval.",
+      "files": [],
+      "assertions": [
+        "Writes a dated demo plan file (demo-<YYYY-MM-DD>.md) as a single artifact rather than only answering in prose",
+        "Plan carries a beat sheet with one section per feature named in the request",
+        "Every beat names exactly one browser interaction plus the element it targets",
+        "Every beat carries narration written as the words to be spoken, not a description of what to say",
+        "Every fixture the beats touch has a written creation step or a stated source",
+        "Plan states a teardown or reset path back to the pre-demo state",
+        "Plan gives a per-feature recovery for the demo going off-script live",
+        "Plan defines the Chrome tab group by name and lists its tabs in load order",
+        "Plan specifies human-paced pauses with concrete durations between actions",
+        "Toolbelt lists the browser tool names actually found in this session, each with the job it does",
+        "Element targets are grounded in what the live page shows rather than guessed labels",
+        "Holds back from presenting and puts the plan to the user for approval first",
+        "Beat sheet covers all four named features: sign in, sort by price, add two items, complete checkout",
+        "Login credentials are staged as a fixture with their source named, not invented",
+        "Checkout form data (first name, last name, postal code) is specified in advance"
+      ]
+    },
+    {
+      "id": 1,
+      "name": "todomvc-filter-scope",
+      "prompt": "quick one for standup tomorrow: demo just the Active and Completed filters on https://todomvc.com/examples/react/dist/ — nothing else, I've got 5 minutes.",
+      "expected_output": "A single-feature plan whose scope stays on the two filters, with pre-demo seeding of todos (at least one active, one completed) written as explicit steps.",
+      "files": [],
+      "assertions": [
+        "Writes a dated demo plan file (demo-<YYYY-MM-DD>.md) as a single artifact rather than only answering in prose",
+        "Plan carries a beat sheet with one section per feature named in the request",
+        "Every beat names exactly one browser interaction plus the element it targets",
+        "Every beat carries narration written as the words to be spoken, not a description of what to say",
+        "Every fixture the beats touch has a written creation step or a stated source",
+        "Plan states a teardown or reset path back to the pre-demo state",
+        "Plan gives a per-feature recovery for the demo going off-script live",
+        "Plan defines the Chrome tab group by name and lists its tabs in load order",
+        "Plan specifies human-paced pauses with concrete durations between actions",
+        "Toolbelt lists the browser tool names actually found in this session, each with the job it does",
+        "Element targets are grounded in what the live page shows rather than guessed labels",
+        "Holds back from presenting and puts the plan to the user for approval first",
+        "Scope stays on the Active and Completed filters without adding features the request did not name",
+        "Seeds todos before beat 1 — at least one left active and one marked completed — as staging, separate from the demoed beats",
+        "Run time fits the stated 5 minute slot, with the estimate given at the approval gate"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "saucedemo-failure-paths",
+      "prompt": "show the team the unhappy paths on https://www.saucedemo.com — the locked out user hitting the wall, and a checkout that gets rejected because the postal code is blank. want them to see the actual error messages.",
+      "expected_output": "A plan covering both failure paths, with the expected error text as each beat's Confirm, and a stated distinction between an error the demo means to show and the demo going off-script.",
+      "files": [],
+      "assertions": [
+        "Writes a dated demo plan file (demo-<YYYY-MM-DD>.md) as a single artifact rather than only answering in prose",
+        "Plan carries a beat sheet with one section per feature named in the request",
+        "Every beat names exactly one browser interaction plus the element it targets",
+        "Every beat carries narration written as the words to be spoken, not a description of what to say",
+        "Every fixture the beats touch has a written creation step or a stated source",
+        "Plan states a teardown or reset path back to the pre-demo state",
+        "Plan gives a per-feature recovery for the demo going off-script live",
+        "Plan defines the Chrome tab group by name and lists its tabs in load order",
+        "Plan specifies human-paced pauses with concrete durations between actions",
+        "Toolbelt lists the browser tool names actually found in this session, each with the job it does",
+        "Element targets are grounded in what the live page shows rather than guessed labels",
+        "Holds back from presenting and puts the plan to the user for approval first",
+        "Beat sheet covers both failure paths: the locked out user and the rejected checkout",
+        "Each failure beat's Confirm names the error message the audience should read on screen",
+        "Plan separates an error it means to demonstrate from the demo going off-script, so a shown error is not treated as a failure"
+      ]
+    }
+  ]
+}
