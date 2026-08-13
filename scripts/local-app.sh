@@ -10,6 +10,10 @@
 # This reads them from the running stack itself and holds them for every step, so the
 # procedure sets up its own pre-state instead of depending on the operator's shell.
 #
+# It also applies every pending migration before building — a launch command that skips
+# this can serve a stale schema against current code, and the failure stays silent until
+# someone happens to exercise the path that needed the missing table or grant.
+#
 #   npm run app:local
 #
 # Environment:
@@ -37,6 +41,10 @@ if [[ -z "$NEXT_PUBLIC_SUPABASE_URL" || -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]]; 
   exit 1
 fi
 
+echo "==> supabase migration up  (every pending migration, against the running stack)"
+supabase migration up
+
+echo
 echo "==> next build  (against $NEXT_PUBLIC_SUPABASE_URL)"
 npm run build
 

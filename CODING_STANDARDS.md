@@ -36,6 +36,15 @@
 
 ---
 
+## 4a. One-Click Deployment
+
+* **Single command, no manual steps, local or remote:** The command that launches or redeploys the app — `npm run app:local` locally, `npm run deploy` (`scripts/deploy.sh`) remotely — MUST be sufficient on its own to bring the running app fully in step with the checked-out commit: schema, grants, and RLS policies included. It must never depend on an operator having separately run `supabase db reset`, `supabase migration up`, or `supabase db push` beforehand.
+* **Every migration on disk is applied, every time:** Before building or restarting the app, the deploy/launch command applies every pending migration (`supabase migration up` locally; `supabase db push` remotely, already done in `scripts/deploy.sh`). A migration committed to the repo and not yet applied to the target database is the command's problem to fix, never the operator's to remember.
+* **Why:** A launch command that skips migrations can serve a stale schema against current application code — the app builds and starts, then fails at runtime on a table it assumes exists or a grant it assumes was made. That failure is silent until someone happens to exercise the affected path, and it wastes time diagnosing an "environment problem" that is really a missing step in the deploy command itself.
+* **Verification:** `scripts/local-app.sh` and `scripts/deploy.sh` are audited for this on every change to either script — a review that adds a migration but doesn't confirm the launch command applies it is incomplete.
+
+---
+
 ## 5. Development & Review Workflow
 
 * **SDLC Standard:** Work follows the `mattpocock/skills` flow: Grill $\rightarrow$ Spec $\rightarrow$ Tickets $\rightarrow$ Implement $\rightarrow$ Verification Gate $\rightarrow$ Commit.
