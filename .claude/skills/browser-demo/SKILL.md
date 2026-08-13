@@ -20,7 +20,7 @@ This file plans. `RUN.md` presents. Write the whole plan and get it approved bef
 Check all three before planning:
 
 1. **Browser tools reachable.** Load the Claude in Chrome tool surface — `ToolSearch("+chrome tab")`, then whatever else the names suggest (navigate, click, type, read page, screenshot, tab groups). Record the exact tool names you found in the plan's Toolbelt section; the plan is written against the names that exist today, not remembered ones.
-2. **App reachable.** Find how this project runs locally (its README, `package.json` scripts, compose file, `supabase/config.toml`) and get the base URL. Confirm it serves.
+2. **App reachable.** Find this project's one-command launcher (its README, `package.json` scripts, compose file, `supabase/config.toml`) — the single command that rebuilds and relaunches the app in step with the checked-out commit, migrations included — and get the base URL. `RUN.md` runs this launcher fresh every time; never assume a server already running is current.
 3. **Chrome connected.** If step 1 finds no browser tools, tell the user to connect Claude in Chrome (`/chrome`) and stop here. Everything downstream is browser work.
 
 ## Read the product first
@@ -45,10 +45,10 @@ The exact browser tool names from Precondition 1, each with the one job you will
 
 The **staging** work — everything that must be true before beat 1 so the demo lands on a populated, believable app:
 
-- Base URL, and the command that starts the app.
+- Base URL, and the one-command launcher that rebuilds and relaunches the app (migrations included) — never a bare `next start` or a server already running.
 - Accounts and credentials, including how each is created.
 - Every data fixture the demo touches, each with the exact shell command, SQL, or seed script that creates it — and the reset command that returns the app to this state.
-- Browser state: which tabs the **tab group** holds, in load order, with the group's name and colour.
+- Browser state: a fresh Incognito/Guest window or cleared cache and cookies for the app's origin, then which tabs the **tab group** holds, in load order, with the group's name and colour.
 - Timers, quotas, or rate limits that can bite mid-demo (email-per-hour caps, token expiry), and what you do when one fires.
 
 Every fixture needs a creation step written out. A fixture named without a way to create it is the plan's most common hole.

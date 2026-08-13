@@ -6,11 +6,12 @@ The execution half of [`browser-demo`](SKILL.md). The approved `demo-<date>.md` 
 
 Run section 3 of the plan to completion first, with no narration — the audience watches the demo, not the setup.
 
-1. Start the app; confirm the base URL serves.
-2. Create every fixture; verify each exists by reading it back, not by trusting the command's exit code.
-3. Open the **tab group**: create the group with the plan's name and colour, then open the plan's tabs into it in load order, ending on the tab beat 1 starts from. If the browser tool surface has no group-create tool, open the tabs into one fresh window and say the group's name in the opening narration.
-4. Ask the user for the staging **hand-offs** from section 4 of the plan — the sign-ins, grants, and settings that have to be true before beat 1. Ask for them in one message, so they make a single pass at the keyboard instead of being interrupted repeatedly, and wait for each observable before treating it as done.
-5. Take one screenshot of the opening tab and check it against what beat 1 expects to see.
+1. **Sync to remote.** `git fetch`, then check the current branch against its upstream. Uncommitted changes: stash (`-u`) or stop and ask — never demo over unreviewed local edits. Behind upstream: pull (rebase, per this repo's history convention) before continuing. A demo on stale `main` shows the audience code they didn't ship.
+2. **Rebuild and relaunch from scratch.** Run this project's one-command launcher (`npm run app:local` — never start the server directly or reuse one already running). Every run: pulls every pending migration, reapplies `seed.sql`, does a full `next build`, then restarts the server — no cached build, no skipped migration, no assumption that a process left over from a prior demo is still good. Confirm the base URL serves only after this completes.
+3. Create every fixture; verify each exists by reading it back, not by trusting the command's exit code.
+4. **Fresh browser state.** Open the tab group in a new Incognito/Guest window (or clear the profile's cache and cookies for the app's origin first) so no prior demo's cache, cookies, or session leaks in. Then create the group with the plan's name and colour, and open the plan's tabs into it in load order, ending on the tab beat 1 starts from. If the browser tool surface has no group-create tool, open the tabs into one fresh window and say the group's name in the opening narration.
+5. Ask the user for the staging **hand-offs** from section 4 of the plan — the sign-ins, grants, and settings that have to be true before beat 1. Ask for them in one message, so they make a single pass at the keyboard instead of being interrupted repeatedly, and wait for each observable before treating it as done.
+6. Take one screenshot of the opening tab and check it against what beat 1 expects to see.
 
 Then tell the user staging is complete and move straight into beat 1 — no pause for a go-ahead.
 
