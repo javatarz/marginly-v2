@@ -12,6 +12,13 @@
 #   RESTART_CMD            how to restart the app after the build. Defaults to the
 #                          local pid-file restart in scripts/restart-app.sh; a
 #                          pipeline sets this to its own rollout command.
+#   EDGE_DB_URL            the same connection string an operator already put in
+#                          this Edge Function's secret via `supabase secrets set
+#                          EDGE_DB_URL=...`. This script is the single place that
+#                          reads it, so it is also the single place that can set
+#                          the deployed `edge_functions` Postgres role's password
+#                          to match — see the "sync edge_functions role password"
+#                          step below and issue #40.
 
 set -euo pipefail
 
@@ -39,6 +46,31 @@ supabase config push "${PROJECT_REF_ARGS[@]}"
 
 step "supabase db push"
 supabase db push "${PROJECT_REF_ARGS[@]}" --yes
+
+step "sync edge_functions role password"
+# 20260813200001_upload_a_version.sql creates `edge_functions` with no password —
+# correct, since `db push` sends a migration's SQL to production verbatim — but that
+# leaves nothing setting a real one there. EDGE_DB_URL is the operator's own secret
+# (never printed, never written to disk); reading its password out and pushing it
+# into the role here means both sides come from the one value the operator already
+# holds, so they cannot drift apart the way #40 found them (see docs/adr/0013).
+if [[ -z "${EDGE_DB_URL:-}" ]]; then
+  echo "EDGE_DB_URL is not set. It must hold the same connection string already set" >&2
+  echo "on the Edge Function's EDGE_DB_URL secret, so this step can set a matching" >&2
+  echo "password on the deployed edge_functions role." >&2
+  exit 1
+fi
+EDGE_FUNCTIONS_PASSWORD="$(node -e '
+  const password = new URL(process.argv[1]).password;
+  if (!password) {
+    console.error("EDGE_DB_URL has no password component.");
+    process.exit(1);
+  }
+  process.stdout.write(decodeURIComponent(password));
+' "$EDGE_DB_URL")"
+EDGE_FUNCTIONS_PASSWORD_SQL="${EDGE_FUNCTIONS_PASSWORD//\'/\'\'}"
+supabase db query --linked "alter role edge_functions with password '$EDGE_FUNCTIONS_PASSWORD_SQL';"
+unset EDGE_FUNCTIONS_PASSWORD EDGE_FUNCTIONS_PASSWORD_SQL
 
 step "supabase functions deploy"
 supabase functions deploy "${PROJECT_REF_ARGS[@]}"

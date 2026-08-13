@@ -130,9 +130,21 @@ already written in.
 
 ## Deployment
 
-One script, run in order: `npm run verify`, `supabase db push`,
-`supabase functions deploy`, `next build`, restart. The Next.js app is served by
-`next start` against a production build on Node — never `next dev`.
+One script, run in order: `npm run verify`, `supabase db push`, sync the
+`edge_functions` role's password, `supabase functions deploy`, `next build`,
+restart. The Next.js app is served by `next start` against a production build on
+Node — never `next dev`.
+
+The password sync exists because the raw-connection role ADR-0009 needs
+(`edge_functions`) is created with no password by its migration — correct, since
+`db push` sends that SQL to a linked project verbatim, and a real password can
+never live there. An operator sets the matching secret, `EDGE_DB_URL`, by hand
+with `supabase secrets set`; that secret is the connection string the Upload Edge
+Function actually dials with, so it is the one value that already has to be
+right. `scripts/deploy.sh` reads that same `EDGE_DB_URL` from its own environment
+and pushes its password into the role, rather than inventing a second value —
+one source, read twice, so the two cannot silently drift apart the way issue #40
+found them (first deploy after that migration, before this existed).
 
 Vercel was the obvious host and was rejected. It splits deployment across two
 mechanisms — a git-driven deploy for the app and a CLI deploy for the functions —
