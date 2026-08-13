@@ -27,6 +27,46 @@ bash scripts/deploy.sh     # verify, db push, functions deploy, build, restart
 every commit. A migration and its regenerated types are committed together, or the
 gate fails.
 
+### Signing in locally
+
+```
+npm run app:local
+```
+
+That builds, serves and smoke-checks the whole sign-in flow against the local stack,
+reading the stack's own URL and anon key rather than expecting them in your shell.
+
+Those two settings are `NEXT_PUBLIC_*`, which Next **inlines at build time** — the
+middleware runs in the Edge runtime, where nothing reads the environment per request. So
+they must be set for `next build`, not only for `next start`; a build without them
+produces an app that throws on every request. Neither is a secret, and no service key
+belongs in either:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<ANON_KEY from supabase status>
+```
+
+There is no sign-up (ADR-0001), so an account has to be seeded first:
+
+```
+node scripts/seed-accounts.mjs --local author@example.com reviewer@example.com
+```
+
+Then ask for a magic link at http://127.0.0.1:3000/sign-in and open it from the local
+mailbox at http://127.0.0.1:54324. The link goes to `/auth/confirm`, which verifies it
+server-side.
+
+Where the built-in mailer cannot deliver — it refuses any address outside the Supabase
+organisation's team (issue #6) — an operator can hand someone a token instead:
+
+```
+node scripts/seed-accounts.mjs --local --link reviewer@example.com
+```
+
+The seed script is the only holder of the `service_role` key. Nothing under `src/` may
+name one, and `npm run verify` fails if anything does.
+
 ## Content
 
 A Book is written and edited entirely outside Marginly. Nothing is editable in

@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
-import { readSupabaseEnv } from "./env";
+import { readSupabaseEnv, supabaseEnv } from "./env";
 
 const jwtWithRole = (role: string) => {
   const segment = (value: object) =>
@@ -9,6 +9,32 @@ const jwtWithRole = (role: string) => {
 };
 
 const anonJwt = jwtWithRole("anon");
+
+describe("reading the Supabase environment from the process", () => {
+  const before = { ...process.env };
+
+  afterEach(() => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = before.NEXT_PUBLIC_SUPABASE_URL;
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = before.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  });
+
+  it("takes both settings from the environment the app runs in", () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = anonJwt;
+
+    expect(supabaseEnv()).toEqual({
+      url: "http://127.0.0.1:54321",
+      anonKey: anonJwt,
+    });
+  });
+
+  it("refuses a service key put there instead", () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = jwtWithRole("service_role");
+
+    expect(() => supabaseEnv()).toThrow("holds a service key");
+  });
+});
 
 describe("reading the Supabase environment", () => {
   it("returns the project URL and the anon key", () => {

@@ -14,6 +14,14 @@ export type SupabaseEnv = {
 const URL_VAR = "NEXT_PUBLIC_SUPABASE_URL";
 const ANON_KEY_VAR = "NEXT_PUBLIC_SUPABASE_ANON_KEY";
 
+/** The same two settings, from the process the app is running in. */
+export function supabaseEnv(): SupabaseEnv {
+  return readSupabaseEnv({
+    [URL_VAR]: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    [ANON_KEY_VAR]: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  });
+}
+
 export function readSupabaseEnv(
   source: Record<string, string | undefined>,
 ): SupabaseEnv {
