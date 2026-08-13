@@ -24,6 +24,7 @@
 * **Mocking Policy:** Mock ONLY at the outer system boundaries (I/O edges). Never mock internal domain classes or pure modules. Use stubs to control the size of the unit if setup is becoming complicated. Prefer state based tests over mock based one for pure seems.
 * **Tests the system behavior:** Align tests to system behavior rather than to system structure. This focuses test scenarios on the system requirements than code under tests. Any classes or method created as part of the refactoring may not automatically requires tests. Add tests for this when setup is becoming complicated (use stubs to reduce the unit size).  
 * **No Skipped Tests:** Tests must not be skipped or ignored. 
+* **Self-Contained Tests:** A test's setup and teardown live in the test code itself, never assumed from the operator's shell, `.env.local`, or a manual step run by hand beforehand (a migration, a reset, a debug script). A test must not depend on state a previous run left behind, and must not leave behind state a later run or another test depends on — fixtures are inserted and cleaned up (or overwritten idempotently) by the test's own code. Running the designated command from a clean checkout — `npm run gate` for anything touching the database, which resets the local stack before `npm run verify` — must be sufficient on its own, every time. A result that depends on what the operator happened to run first is non-deterministic, and that is a bug in the test, not in the environment.
 * **Gate Command:** Code must pass `npm run verify` locally before committing.
 
 ---

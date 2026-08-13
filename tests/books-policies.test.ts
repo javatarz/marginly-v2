@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { anonClient, asSuperuser, signedInClient } from "./support/local-stack";
+import { accountId, anonClient, asSuperuser, signedInClient } from "./support/local-stack";
 
 /**
  * Who reads a Book, against a real database.
@@ -24,28 +24,36 @@ const GRANTED = "aaaaaaaa-0000-4000-8000-000000000002";
 const REVOKED = "aaaaaaaa-0000-4000-8000-000000000003";
 const PRIVATE_TO_OTHER = "aaaaaaaa-0000-4000-8000-000000000004";
 
+// Rows the "creating a Book" tests below insert through the real policy, rather than as
+// superuser fixtures — named ids so a second run cleans up the first's instead of
+// colliding with it.
+const CREATED_BY_AUTHOR = "aaaaaaaa-0000-4000-8000-000000000005";
+const CREATED_BY_OTHER_AUTHOR = "aaaaaaaa-0000-4000-8000-000000000006";
+
 type Client = Awaited<ReturnType<typeof signedInClient>>;
 
 let author: Client;
+let otherAuthor: Client;
 let reviewer: Client;
 let stranger: Client;
 let revokedOnly: Client;
 
 beforeAll(async () => {
-  [author, reviewer, stranger, revokedOnly] = await Promise.all([
+  [author, otherAuthor, reviewer, stranger, revokedOnly] = await Promise.all([
     signedInClient(AUTHOR),
+    signedInClient(OTHER_AUTHOR),
     signedInClient(REVIEWER),
     signedInClient(STRANGER),
     signedInClient(REVOKED_ONLY),
   ]);
-  await signedInClient(OTHER_AUTHOR);
 
   // These tests set up their own pre-state. The rows are named rather than inherited from
   // whatever a previous run left behind, and removed first so a second run reads the same
   // as the first.
   asSuperuser(`
     delete from public.books where id in (
-      '${OWNED}', '${GRANTED}', '${REVOKED}', '${PRIVATE_TO_OTHER}');
+      '${OWNED}', '${GRANTED}', '${REVOKED}', '${PRIVATE_TO_OTHER}',
+      '${CREATED_BY_AUTHOR}', '${CREATED_BY_OTHER_AUTHOR}');
 
     insert into public.books (id, author_id, name, created_at)
     select '${OWNED}', u.id, 'Owned', '2026-08-01T09:00:00Z'
@@ -115,16 +123,6 @@ describe("who reads a Book", () => {
     expect(data).toBeNull();
   });
 
-  // Creating, renaming and deleting a Book arrive with #22 and #23. Until they do, no
-  // policy grants a write, and fails-closed means the absence of one refuses.
-  it("refuses a signed-in account a Book of its own invention", async () => {
-    const { error } = await author
-      .from("books")
-      .insert({ id: crypto.randomUUID(), author_id: crypto.randomUUID(), name: "Mine" });
-
-    expect(error).not.toBeNull();
-  });
-
   it("refuses a signed-in account a grant of its own invention", async () => {
     const { error } = await stranger
       .from("book_reviewers")
@@ -151,6 +149,71 @@ describe("who reads a Book", () => {
       .eq("book_id", GRANTED);
 
     expect(data).toEqual([]);
+  });
+});
+
+/**
+ * #22, over the boundary ADR-0010 and ADR-0008 describe: an Author inserts a Book under
+ * their own id and no other, the name is refused blank, and it is unique among that
+ * Author's own Books — compared trimmed and case-insensitively, and stored exactly as
+ * typed.
+ */
+describe("creating a Book", () => {
+  it("lets an Author create a Book under their own id, storing the name exactly as typed", async () => {
+    const authorId = await accountId(author);
+
+    // Not `.insert(...).select()`: chaining a select onto an insert asks PostgREST for
+    // the row back via `RETURNING`, which re-checks the new row against the *select*
+    // policy — `can_read_book`, a `stable security definer` function — in the same
+    // command as the not-yet-externally-visible insert. That combination does not see
+    // its own row and reports the same "violates row-level security policy" error as a
+    // real refusal would, for a row the policy would plainly admit a moment later. A
+    // separate, later select does not have that problem, which is why the app's own
+    // create action never selects the row back either — it generates the id itself.
+    const { error: insertError } = await author
+      .from("books")
+      .insert({ id: CREATED_BY_AUTHOR, author_id: authorId, name: "  Freshly Made  " });
+
+    expect(insertError).toBeNull();
+
+    const { data } = await author.from("books").select("name").eq("id", CREATED_BY_AUTHOR).single();
+    expect(data?.name).toBe("  Freshly Made  ");
+  });
+
+  it("refuses a second Book from the same Author with the same name, compared trimmed and case-insensitively", async () => {
+    const authorId = await accountId(author);
+
+    const { error } = await author
+      .from("books")
+      .insert({ author_id: authorId, name: "freshly made" });
+
+    expect(error).not.toBeNull();
+  });
+
+  it("does not refuse the same name for a different Author", async () => {
+    const otherAuthorId = await accountId(otherAuthor);
+
+    const { error } = await otherAuthor
+      .from("books")
+      .insert({ id: CREATED_BY_OTHER_AUTHOR, author_id: otherAuthorId, name: "Freshly Made" });
+
+    expect(error).toBeNull();
+  });
+
+  it("refuses an empty or whitespace-only name", async () => {
+    const authorId = await accountId(author);
+
+    const { error } = await author.from("books").insert({ author_id: authorId, name: "   " });
+
+    expect(error).not.toBeNull();
+  });
+
+  it("refuses a Book under an id that is not the caller's own", async () => {
+    const { error } = await author
+      .from("books")
+      .insert({ id: crypto.randomUUID(), author_id: crypto.randomUUID(), name: "Mine" });
+
+    expect(error).not.toBeNull();
   });
 });
 
