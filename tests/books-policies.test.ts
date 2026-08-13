@@ -1,0 +1,238 @@
+import { beforeAll, describe, expect, it } from "vitest";
+
+import { anonClient, asSuperuser, signedInClient } from "./support/local-stack";
+
+/**
+ * Who reads a Book, against a real database.
+ *
+ * ADR-0010 puts this boundary in Postgres because Supabase publishes every table over
+ * HTTP, and it warns that a table without a policy fails **open** and looks finished. No
+ * unit test can see either of those, so these drive the rules the way a client will —
+ * through `can_read_book`, from four seeded accounts.
+ */
+const AUTHOR = "book-author@example.com";
+const OTHER_AUTHOR = "book-other-author@example.com";
+const REVIEWER = "book-reviewer@example.com";
+const STRANGER = "book-stranger@example.com";
+
+// A Reviewer whose every grant is marked. The Reviewer above keeps a live grant on
+// "Granted", which would hide a rule that turns on the reader still having one.
+const REVOKED_ONLY = "book-revoked-only@example.com";
+
+const OWNED = "aaaaaaaa-0000-4000-8000-000000000001";
+const GRANTED = "aaaaaaaa-0000-4000-8000-000000000002";
+const REVOKED = "aaaaaaaa-0000-4000-8000-000000000003";
+const PRIVATE_TO_OTHER = "aaaaaaaa-0000-4000-8000-000000000004";
+
+type Client = Awaited<ReturnType<typeof signedInClient>>;
+
+let author: Client;
+let reviewer: Client;
+let stranger: Client;
+let revokedOnly: Client;
+
+beforeAll(async () => {
+  [author, reviewer, stranger, revokedOnly] = await Promise.all([
+    signedInClient(AUTHOR),
+    signedInClient(REVIEWER),
+    signedInClient(STRANGER),
+    signedInClient(REVOKED_ONLY),
+  ]);
+  await signedInClient(OTHER_AUTHOR);
+
+  // These tests set up their own pre-state. The rows are named rather than inherited from
+  // whatever a previous run left behind, and removed first so a second run reads the same
+  // as the first.
+  asSuperuser(`
+    delete from public.books where id in (
+      '${OWNED}', '${GRANTED}', '${REVOKED}', '${PRIVATE_TO_OTHER}');
+
+    insert into public.books (id, author_id, name, created_at)
+    select '${OWNED}', u.id, 'Owned', '2026-08-01T09:00:00Z'
+    from public.users u where u.email = '${AUTHOR}';
+
+    insert into public.books (id, author_id, name, created_at)
+    select '${GRANTED}', u.id, 'Granted', '2026-08-02T09:00:00Z'
+    from public.users u where u.email = '${AUTHOR}';
+
+    insert into public.books (id, author_id, name, created_at)
+    select '${REVOKED}', u.id, 'Revoked', '2026-08-03T09:00:00Z'
+    from public.users u where u.email = '${AUTHOR}';
+
+    insert into public.books (id, author_id, name, created_at)
+    select '${PRIVATE_TO_OTHER}', u.id, 'Private', '2026-08-04T09:00:00Z'
+    from public.users u where u.email = '${OTHER_AUTHOR}';
+
+    insert into public.book_reviewers (book_id, reviewer_id)
+    select '${GRANTED}', u.id from public.users u where u.email = '${REVIEWER}';
+
+    insert into public.book_reviewers (book_id, reviewer_id, revoked_at)
+    select '${REVOKED}', u.id, now()
+    from public.users u where u.email = '${REVIEWER}';
+
+    insert into public.book_reviewers (book_id, reviewer_id, revoked_at)
+    select '${REVOKED}', u.id, now()
+    from public.users u where u.email = '${REVOKED_ONLY}';
+  `);
+}, 120_000);
+
+const namesReadBy = async (client: Client) => {
+  const { data, error } = await client
+    .from("books")
+    .select("name")
+    .in("id", [OWNED, GRANTED, REVOKED, PRIVATE_TO_OTHER]);
+
+  expect(error).toBeNull();
+  return (data ?? []).map((row) => row.name).sort();
+};
+
+describe("who reads a Book", () => {
+  it("gives an Author their own Books and no Book they do not own", async () => {
+    expect(await namesReadBy(author)).toEqual(["Granted", "Owned", "Revoked"]);
+  });
+
+  it("gives a Reviewer only the Books granted to them", async () => {
+    expect(await namesReadBy(reviewer)).toEqual(["Granted"]);
+  });
+
+  it("gives a person nobody granted anything nothing at all", async () => {
+    expect(await namesReadBy(stranger)).toEqual([]);
+  });
+
+  // ADR-0010: `anon` holds no privilege on anything, so this is a permission error rather
+  // than an empty result.
+  it("refuses anon the Books outright", async () => {
+    const { data, error } = await anonClient().from("books").select("name");
+
+    expect(error).not.toBeNull();
+    expect(data).toBeNull();
+  });
+
+  it("refuses anon the grants outright", async () => {
+    const { data, error } = await anonClient().from("book_reviewers").select("book_id");
+
+    expect(error).not.toBeNull();
+    expect(data).toBeNull();
+  });
+
+  // Creating, renaming and deleting a Book arrive with #22 and #23. Until they do, no
+  // policy grants a write, and fails-closed means the absence of one refuses.
+  it("refuses a signed-in account a Book of its own invention", async () => {
+    const { error } = await author
+      .from("books")
+      .insert({ id: crypto.randomUUID(), author_id: crypto.randomUUID(), name: "Mine" });
+
+    expect(error).not.toBeNull();
+  });
+
+  it("refuses a signed-in account a grant of its own invention", async () => {
+    const { error } = await stranger
+      .from("book_reviewers")
+      .insert({ book_id: GRANTED, reviewer_id: crypto.randomUUID() });
+
+    expect(error).not.toBeNull();
+  });
+
+  // A Book's Reviewer list is readable by everyone on that Book (ADR-0010): seeing who
+  // else is reviewing is the disclosure seeing who wrote each Comment already requires.
+  it("shows a Book's grants to everyone on that Book", async () => {
+    const { data } = await reviewer
+      .from("book_reviewers")
+      .select("book_id")
+      .eq("book_id", GRANTED);
+
+    expect(data).toHaveLength(1);
+  });
+
+  it("hides a Book's grants from a person not on it", async () => {
+    const { data } = await stranger
+      .from("book_reviewers")
+      .select("book_id")
+      .eq("book_id", GRANTED);
+
+    expect(data).toEqual([]);
+  });
+});
+
+/**
+ * ADR-0011: revoking marks the row rather than deleting it, and `can_read_book` counts
+ * only unmarked rows — so reading stops at the revoke while the row stays.
+ */
+describe("a Reviewer whose access was withdrawn", () => {
+  it("stops reading the Book", async () => {
+    expect(await namesReadBy(reviewer)).not.toContain("Revoked");
+  });
+
+  it("still holds a grant row on it", async () => {
+    const { data } = await author
+      .from("book_reviewers")
+      .select("book_id, revoked_at")
+      .eq("book_id", REVOKED);
+
+    expect(data?.map((row) => row.revoked_at === null)).toEqual([false, false]);
+  });
+});
+
+/**
+ * ADR-0010's identity rule, which only became expressible once Books existed: an address
+ * is readable where the reader and the subject share a Book, and a marked grant row still
+ * counts as sharing one (ADR-0011). That is what keeps a revoked Reviewer's address
+ * beside the Comments they wrote.
+ */
+describe("whose address an account may read", () => {
+  const addressesReadBy = async (client: Client, subject: string) => {
+    const { data, error } = await client
+      .from("users")
+      .select("email")
+      .eq("email", subject);
+
+    expect(error).toBeNull();
+    return (data ?? []).map((row) => row.email);
+  };
+
+  it("shows an Author the address of a Reviewer on one of their Books", async () => {
+    expect(await addressesReadBy(author, REVIEWER)).toEqual([REVIEWER]);
+  });
+
+  it("shows a Reviewer the address of the Author sharing with them", async () => {
+    expect(await addressesReadBy(reviewer, AUTHOR)).toEqual([AUTHOR]);
+  });
+
+  it("shows nobody the address of a person they share no Book with", async () => {
+    expect(await addressesReadBy(stranger, AUTHOR)).toEqual([]);
+  });
+
+  // This Reviewer holds one grant row and it is marked. Their address stays readable to
+  // the Author on the strength of that marked row alone — which is the whole point of
+  // ADR-0011 marking rather than deleting it.
+  it("keeps a revoked Reviewer's address readable to the Author", async () => {
+    expect(await addressesReadBy(author, REVOKED_ONLY)).toEqual([REVOKED_ONLY]);
+  });
+
+  it("stops a revoked Reviewer reading the Book they were revoked from", async () => {
+    const { data } = await revokedOnly.from("books").select("name").eq("id", REVOKED);
+
+    expect(data).toEqual([]);
+  });
+
+  /**
+   * The other direction, which is not the same question.
+   *
+   * ADR-0011's promise is that a revoked Reviewer's address stays readable *to everyone
+   * still on the Book*. It says nothing about what they may still read, and ADR-0010 puts
+   * identity behind a Book because "the fact that a particular person is on it at all is
+   * itself a disclosure". A revoked Reviewer who kept reading addresses would go on
+   * learning who else is on a Book they cannot read — including people granted after they
+   * left. Written symmetrically, the rule leaks exactly that.
+   */
+  it("stops a revoked Reviewer reading the addresses of people still on the Book", async () => {
+    expect(await addressesReadBy(revokedOnly, AUTHOR)).toEqual([]);
+    expect(await addressesReadBy(revokedOnly, REVIEWER)).toEqual([]);
+  });
+
+  // The self-read from 20260813140000_users.sql, which this must not have taken away: an
+  // account with no live Book at all still has to be able to read its own address.
+  it("still shows a revoked Reviewer their own address", async () => {
+    expect(await addressesReadBy(revokedOnly, REVOKED_ONLY)).toEqual([REVOKED_ONLY]);
+  });
+});

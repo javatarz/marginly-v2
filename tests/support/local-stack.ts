@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -109,6 +110,44 @@ export function accountId(client: SupabaseClient<Database>): Promise<string> {
     }
     return data.user.id;
   });
+}
+
+/**
+ * Put rows in place that no client may write.
+ *
+ * A policy test needs Books and grants to exist before it can show who reads them, and
+ * nothing in the product creates either yet — a Book arrives with #22 and a grant with
+ * #28's `grant_access`. Reaching for the `service_role` key here would make the tests a
+ * second holder of it, which ADR-0010 keeps at exactly one: the seed script. So the
+ * fixtures go in as the database's own superuser, through the local stack's container,
+ * which no shipped code path can reach.
+ */
+export function asSuperuser(statements: string): void {
+  execFileSync(
+    "docker",
+    [
+      "exec",
+      "-i",
+      `supabase_db_${projectId()}`,
+      "psql",
+      "--username=postgres",
+      "--dbname=postgres",
+      "--set=ON_ERROR_STOP=1",
+      "--quiet",
+    ],
+    { input: statements, encoding: "utf8" },
+  );
+}
+
+function projectId(): string {
+  const config = readFileSync("supabase/config.toml", "utf8");
+  const id = /^project_id\s*=\s*"([^"]+)"/m.exec(config)?.[1];
+
+  if (!id) {
+    throw new Error("supabase/config.toml names no project_id");
+  }
+
+  return id;
 }
 
 function seed(email: string): void {

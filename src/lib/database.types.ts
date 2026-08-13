@@ -34,6 +34,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      book_reviewers: {
+        Row: {
+          book_id: string
+          granted_at: string
+          reviewer_id: string
+          revoked_at: string | null
+        }
+        Insert: {
+          book_id: string
+          granted_at?: string
+          reviewer_id: string
+          revoked_at?: string | null
+        }
+        Update: {
+          book_id?: string
+          granted_at?: string
+          reviewer_id?: string
+          revoked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "book_reviewers_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      books: {
+        Row: {
+          author_id: string
+          created_at: string
+          id: string
+          latest_version_number: number
+          name: string
+        }
+        Insert: {
+          author_id: string
+          created_at?: string
+          id?: string
+          latest_version_number?: number
+          name: string
+        }
+        Update: {
+          author_id?: string
+          created_at?: string
+          id?: string
+          latest_version_number?: number
+          name?: string
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           email: string
@@ -54,7 +107,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      can_read_book: { Args: { book: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
