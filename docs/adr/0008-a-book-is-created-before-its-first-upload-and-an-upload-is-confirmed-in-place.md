@@ -64,19 +64,17 @@ Reviewer's discussion disappearing is a worse outcome than an abandoned row.
 ## An Upload is confirmed, not immediate
 
 The Author sees a preview before the Upload commits: the Book's name it is about
-to land on, the first **twenty segments** of extracted text — ADR-0005's
-extraction, run over the sanitised tree — and how many Threads would Unlink.
-Plain text in Marginly's own type, with no Book CSS, no iframe and no images, so
-the preview depends on nothing about how a Version is rendered.
+to land on, and the first **twenty segments** of extracted text — ADR-0005's
+extraction, run over the sanitised tree. Plain text in Marginly's own type, with
+no Book CSS, no iframe and no images, so the preview depends on nothing about how
+a Version is rendered.
 
 The name and the segments are the guard against a misclick, and twenty segments
-of the wrong manuscript is unmistakable. The Unlink count answers a different
-question — not "is this the right file" but "what does landing it cost" — and
-ADR-0009 shows it because an Upload has no undo. Withholding it until after
-completion, which this decision originally did, told the Author what they had
-already spent rather than what they were about to. The count is a projection:
-ADR-0009 recomputes it authoritatively inside the Upload transaction, and a
-Thread Resolved or started while the Author reads the preview moves it.
+of the wrong manuscript is unmistakable. That is the preview's whole job. **This
+decision once carried an Unlink count here as well; ADR-0014 removes it**, from
+the preview and from anywhere else. The preview already gives the Author the
+chance to cancel, so nothing beyond "is this the right file" needs answering
+before they confirm, and ADR-0007's rail is what durably shows an Unlinked Thread.
 
 After confirmation nothing is removable — no Version deletion, no undo. Removing
 the latest Version would have to reverse the `thread_versions` rows the Upload

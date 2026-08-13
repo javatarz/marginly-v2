@@ -136,11 +136,13 @@ There is no application-level ceiling. Supabase Storage's global file size limit
 applies, which caps at 50 MB on the Free plan, so that is the effective ceiling
 until someone raises it deliberately.
 
-That is the ceiling on **storing** a bundle. Processing one has its own, and it is
-not a byte count: an Edge Function gets 2 s of CPU time per request, so what a
-preview can parse is a function of how complex the document is, not how large the
-file is. A Book can therefore be small enough to store and too heavy to preview.
-Issue 15 establishes the numbers; the preview's shape follows from issue 16.
+That is the ceiling on **storing** a bundle. Processing one has its own, and
+**ADR-0014 makes it a byte count after all** — on `index.html` rather than on the
+zip. The preview refuses HTML above **10 MB**, because memory, not the 2 s of CPU
+an Edge Function gets, is what binds first. A 50 MB bundle across hundreds of
+files previews comfortably; one very large HTML file does not. So a Book can still
+be small enough to store and too heavy to preview, but the line is now a stated
+number the Author is told, rather than a function of how complex their markup is.
 
 ## Consequences
 

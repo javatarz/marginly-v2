@@ -22,10 +22,12 @@ There is no window in which a Version exists with an incomplete carry.
 
 ## The preview
 
-The browser posts the zip as the request body of an Edge Function, which unzips
-it in memory. The Author sees one indeterminate loader for the whole wait —
-transfer and processing are not distinguished, because once the bytes have moved
-the rest is too fast to read.
+**ADR-0014 settles the shape.** The browser sends the zip to the Book's staging
+prefix in Storage, and then one Edge Function invocation — given a path, not a
+body — does the whole preview. The Author sees one indeterminate loader for the
+whole wait: transfer and processing are not distinguished, because once the bytes
+have moved the rest is under half a second. ADR-0014 also refuses `index.html`
+above 10 MB, where memory rather than CPU binds.
 
 The bundle is hashed and compared against the latest Version's hash per ADR-0005.
 A match **refuses** the Upload outright: there is no preview to confirm and no
@@ -49,9 +51,10 @@ replaces the first, because it means the Author changed their mind about which
 file to Upload and keeping both would give them two confirm buttons for one
 intent.
 
-Open Threads are matched here too, and the result is **thrown away**. It exists
-only to fill in the Unlink count ADR-0008's preview now carries. Nothing computed
-here is written, and the confirm trusts none of it.
+Open Threads are **not** matched here. This decision once ran the match in the
+preview and threw the result away, purely to fill an Unlink count; ADR-0014
+removes the count, so the pass has no consumer and does not run. Matching happens
+once, in the confirm.
 
 ## The confirm
 
@@ -73,9 +76,10 @@ Copying rather than moving is what makes a failed confirm retryable. The staged
 bundle survives the rollback, so the Author confirms again from the same preview
 instead of re-sending up to 50 MB over a transient database error.
 
-Matching runs **again**, here, against the Thread set read inside this
-transaction. Reusing the preview's results was rejected, and not on grounds of
-cost — matching is a millisecond string pass. The Thread set moves while the
+Matching runs here, and only here, against the Thread set read inside this
+transaction. Running it earlier and reusing the result was rejected even while the
+preview still did it, and not on grounds of cost — matching is a millisecond
+string pass. The Thread set moves while the
 Author reads the preview. An Author who Resolves a Thread and then confirms would
 insert a `thread_versions` row for a Resolved Thread, which ADR-0006 forbids; a
 Reviewer who starts a Thread in the same window would get no row for it, so a
@@ -165,39 +169,35 @@ outside any transaction, and the confirm holds its lock only for row writes.
 
 ## Consequences
 
-**The synchronous preview does not survive its runtime.** Issue 15 measured the
-caps: an Edge Function gets **2 s of CPU time per request**, no plan raises it, and
-exceeding it returns HTTP 546 with no partial result. Unzipping a bundle of up to
-50 MB, parsing a whole document and segmenting its text does not fit, and the cliff
-sits wherever the Author's markup puts it rather than at a byte count — so nothing
-behind a synchronous preview can promise a ceiling on a Book at all. Memory, which
-should be planned at 150 MB, rules out holding the compressed bytes, the unzipped
-tree and a parsed DOM at once. The body limit this ADR feared turned out to be
-undocumented and beside the point.
+**The synchronous preview survives, over a staged zip.** This ADR once concluded
+the opposite. Issue 15 measured an Edge Function at **2 s of CPU time per
+request**, with a 546 and no partial result beyond it, and unzipping up to 50 MB
+and parsing a whole document did not look like it fit. ADR-0012 then removed CSS
+parsing from the preview, and measurement put War and Peace at **389 ms** — roughly
+5× margin, in one invocation. ADR-0014 keeps the preview synchronous and moves only
+the transfer: the zip goes to Storage first, so the function reads a path rather
+than a body and Storage's documented 50 MB is the real ceiling. What binds is
+memory rather than CPU, and on HTML size rather than bundle size, so ADR-0014
+states a 10 MB limit on `index.html` and refuses above it.
 
-Two shapes remain — stage the zip in Storage and split the preview across
-invocations, or keep it synchronous and run it off Edge Functions — and issue 16
-settles which. Whichever wins, everything from the confirm onwards stands as
-written: the copy, the one transaction, `set local role`, the privilege-free role
-and the bump's row lock, as do the staging prefix clearing, refuse-on-duplicate and
-one unconfirmed bundle per Book. Only the half before the Author presses confirm is
-open.
+Everything from the confirm onwards stands as written: the copy, the one
+transaction, `set local role`, the privilege-free role and the bump's row lock, as
+do the staging prefix clearing, refuse-on-duplicate and one unconfirmed bundle per
+Book.
 
 **RLS must let an Author write a Version.** The `versions` insert and the
 `latest_version_number` bump run as the Author under their own JWT, so the policy
 shape has to permit both.
 
-**The Unlink count the Author approves is a projection.** It is computed in the
-preview and shown plainly, without hedging, because the drift needs a Reviewer to
-act in the seconds before the confirm. When it does drift, the count reported
-after completion differs from the one the Author agreed to, and neither is stored —
-both are rendered once and discarded. The durable signal is ADR-0007's rail, which
-parks every Unlinked card beside the text it used to hold.
+**There is no Unlink count.** This ADR once computed one in the preview and showed
+it to the Author before the confirm; ADR-0014 removes it. The durable signal is
+ADR-0007's rail, which parks every Unlinked card beside the text it used to hold.
 
 **A failed confirm is invisible in the data and recoverable by the Author.** No
 Version, no rows, and the preview still standing. The only trace is whatever the
 compensating delete did not reach.
 
-**Two matching passes means two implementations must not drift.** The preview's
-count and the confirm's rows come from the same rules and must come from the same
-code, or the Author approves a number the transaction disagrees with.
+**There is one matching pass.** This ADR once warned that the preview's count and
+the confirm's rows had to come from the same code or the Author would approve a
+number the transaction disagreed with. With no count in the preview there is no
+second implementation and no drift to guard against.
