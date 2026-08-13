@@ -12,16 +12,20 @@ Vocabulary is defined in [`CONTEXT.md`](./CONTEXT.md). Decisions are recorded in
 A Book is written and edited entirely outside Marginly. Nothing is editable in
 the platform — only Threads and Comments are added.
 
-An Upload sends a zip holding one `index.html` plus its CSS and images, and
-creates a new immutable Version. A Book keeps every Version, and all of them stay
-readable. An Upload whose content is identical to the latest Version creates
-nothing and says so.
+An Upload sends a zip holding one `index.html` plus its images, and creates a new
+immutable Version. A Book keeps every Version, and all of them stay readable. An
+Upload whose content is identical to the latest Version creates nothing and says
+so.
 
 The HTML is sanitised on the way in, and the Author is told how many tags were
-removed. A Book's CSS never reaches Marginly's own interface. See ADR-0005.
+removed. See ADR-0005.
 
-A Version renders as a single page. The CSS and images are separate files, but
-the whole Version is one HTML page — no pagination, no chapter splitting.
+**Marginly does not use the Author's styling.** A zip may carry stylesheets and
+they are accepted, but nothing in them renders — every Book is read in Marginly's
+own typography, and the Author's tags rather than their CSS carry what survives.
+Images render. See ADR-0012.
+
+A Version renders as a single page — no pagination, no chapter splitting.
 
 ## Threads
 

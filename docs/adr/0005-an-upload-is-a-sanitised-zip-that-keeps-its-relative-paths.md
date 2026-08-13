@@ -9,7 +9,8 @@ The HTML is sanitised against an **allowlist**, and anything outside it is
 stripped rather than refused. The Author is told how many tags were removed.
 
 Asset references are **left exactly as the Author wrote them**. The bundle's
-files keep their relative paths in storage, and nothing in the HTML is rewritten.
+files keep their relative paths in storage, and nothing in the stored HTML is
+rewritten. ADR-0012 rewrites them at read time instead — see below.
 
 ## The allowlist
 
@@ -35,26 +36,33 @@ rather than left silent.
 
 ## The CSS
 
-Every selector is scoped to the content container. `url()` and `@font-face`
-survive, off-site references included. `@import` is dropped, and so are
-`position: fixed` and `position: sticky`, with the container clamped against
-geometric overflow.
+**Retired by ADR-0012.** This section specified selector scoping, an `@import`
+drop, `position: fixed` and `position: sticky` drops, and an allowance for
+`url()` and `@font-face`. All of it existed to make an Author's stylesheet safe
+to render alongside Marginly's own interface. ADR-0012 renders no Author
+stylesheet at all, from any route: a `.css` file in the zip is accepted and then
+dropped, `<style>` and `<link>` are removed, and the inline `style` attribute
+stays removed by the security half of the allowlist above. `class` and `id`
+survive as markup, defining nothing.
 
-`@import` is different in kind from the other two. `url()` and `@font-face` pull
-a resource; `@import` pulls arbitrary CSS that arrives after the sanitiser has
-run and can carry any rule at all — a hole straight through the scoping. Fixed
-and sticky positioning escape their container whatever selector carries them, so
-scoping alone does not deliver the rule that matters: nothing in a Book's CSS
-reaches Marginly's own interface.
+The rule this section was written to deliver — nothing in a Book's CSS reaches
+Marginly's own interface — holds by there being no Book CSS.
 
 ## Assets and how they resolve
 
-Keeping relative paths means no rewrite pass, but it moves a constraint onto the
-reading view. A browser resolves `images/fig1.png` against the **document's**
-URL, so the Version document is served at a trailing-slash path — a Version at
-`/books/42/versions/3` would resolve assets to `/books/42/images/fig1.png` and
-break every image in the Book. The trailing slash is an invariant, not a
-convention.
+Keeping relative paths in storage means no rewrite pass at Upload, but it moves a
+constraint onto the reading view. A browser resolves `images/fig1.png` against
+the **document's** URL, and this ADR discharged that by serving the Version as its
+own document at a trailing-slash path — a Version at `/books/42/versions/3` would
+have resolved assets to `/books/42/images/fig1.png` and broken every image in the
+Book.
+
+**ADR-0012 retires that trailing-slash invariant.** With no iframe the Book is a
+fragment of the reading view rather than a document of its own, and ADR-0011 fixes
+a Book at one address with no Version in it, so there is no URL left for a
+relative path to resolve against. `src`, `srcset` and `<picture>` are rewritten
+onto the access-checked route **at read time**, as the page is assembled. Storage
+still holds exactly what the Author sent.
 
 The bucket is private, because a Reviewer reads only the Books they were granted.
 An application route mediates every asset request and checks access; "stored
@@ -80,6 +88,13 @@ duplicate would read as different. The raw extracted files are stable forever.
 
 Comparing against the latest Version alone is deliberate. A Version identical to
 some older one means the Author reverted, and the Book genuinely moved.
+
+**ADR-0012 excludes stylesheets from the hash.** Nothing in a `.css` file can
+change what a Version renders, so an Author who tweaks only their styling and
+re-uploads must get no Version rather than one that reads exactly like the last —
+which would also re-match every Open Thread for nothing. Excluding by extension is
+a fixed rule, not a growing allowlist, so it does not reintroduce the drift the
+section above rejects.
 
 ## The extracted text
 
@@ -135,11 +150,14 @@ and for bundled assets, but not for off-site images: the Author's server can
 replace one, and a Version renders differently than it did when the Thread beside
 it was written. The Author owns URL stability, and the platform cannot enforce
 it. An `http://` reference will be blocked by the browser as mixed content
-regardless, so only `https://` renders at all.
+regardless, so only `https://` renders at all. ADR-0012 adds a second way an old
+Version can look different — a change to Marginly's own typography restyles every
+Version at once.
 
 **Every Reviewer's read of an off-site resource reaches a third-party server**,
 carrying their address and the time they read. For an unpublished Book under
-private review, that discloses who is reading and when.
+private review, that discloses who is reading and when. ADR-0012 narrows this to
+images alone: off-site fonts and `@import`ed stylesheets no longer exist.
 
 **A growing allowlist changes old Versions.** Sanitisation runs at Upload, so a
 tag added to the list later does not restore it to a Version already stored. The

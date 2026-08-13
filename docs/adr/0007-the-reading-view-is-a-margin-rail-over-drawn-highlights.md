@@ -85,7 +85,10 @@ twice, and they are only correct together.
 
 **Highlights are geometry, so nothing holds them in place for free.** They are
 redrawn on resize, on a font or zoom change, and whenever a card expands. A
-Version's own CSS can move text after first paint, and the shading has to follow.
+Version's own CSS can move text after first paint, and the shading has to follow —
+ADR-0012 shrinks that last case to image loading alone, since no Author stylesheet
+or web font renders any more, and the surviving `width` and `height` attributes on
+an image blunt even that.
 
 **A range spanning a figure or a table skips it with no rule.** ADR-0005 leaves
 both out of the extracted text, so no character of any range maps inside them.
@@ -104,6 +107,17 @@ document.** ADR-0005 requires that a Book's CSS never reach Marginly's own
 interface, and this decision does not say how that is enforced. Whatever enforces
 it also has to keep the offset index and the Highlights reachable, which rules out
 anything that puts the Book in a document the reading view cannot measure.
+**ADR-0012 settles it by removing the CSS**: there is no iframe and no shadow
+root, the Book is a fragment of this page, and every client rectangle, selection
+and offset is ordinary same-document work.
+
+**The whole page scrolls, under a bar that stays.** Book text and rail scroll
+together as one long page — which is what "scrolling with the page" above already
+assumed — and ADR-0011's header bar sticks to the top of the viewport rather than
+scrolling away with the content. This keeps the maths for drawing Highlights to a
+single offset and leaves the reader with ordinary browser scrolling. It was chosen
+over a fixed shell with the Book scrolling in its own pane, which would have made
+every Highlight position a per-scroll recomputation.
 
 **Mobile is a choice not to serve.** The rail's whole idea is alignment to text,
 and that has no narrow-screen equivalent — a rail on a phone is an index with
