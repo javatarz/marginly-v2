@@ -1,6 +1,8 @@
 {
   "imports": {
-    "@std/assert": "jsr:@std/assert@^1.0.19"
+    "@b-fuze/deno-dom": "jsr:@b-fuze/deno-dom@^0.1.56",
+    "@std/assert": "jsr:@std/assert@^1.0.19",
+    "@zip-js/zip-js": "jsr:@zip-js/zip-js@^2.8.41"
   },
   "fmt": {
     "include": ["./"]
