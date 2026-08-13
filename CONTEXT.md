@@ -32,7 +32,8 @@ _Avoid_: writer, owner, creator
 
 **Reviewer**:
 A person granted access to read a Book and give feedback on it. Never writes to
-the text.
+the text, and the Author may withdraw the access — their Comments stay, still
+named.
 _Avoid_: reader, beta reader, beta user, commenter
 
 ### Feedback

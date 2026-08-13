@@ -38,7 +38,8 @@ and by naming the Version on screen without counting the Versions after it. An
 earlier Version is a point-in-time view and gives no indication of what followed,
 including how much followed. The Version switcher still lists every Version,
 because navigating between them is the reader's own act rather than something the
-reading surface tells them.
+reading surface tells them. ADR-0011 has that switcher mark the newest entry as
+the latest, on the same grounds: the reader opened it.
 
 A Book opens on its latest Version. ADR-0002 carries every Open Thread there, so
 the latest Version is the only one where the whole live discussion is present.

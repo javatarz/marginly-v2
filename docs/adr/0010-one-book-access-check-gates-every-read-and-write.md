@@ -19,7 +19,8 @@ as $$
       and (b.author_id = (select auth.uid())
         or exists (
           select 1 from public.book_reviewers r
-          where r.book_id = b.id and r.reviewer_id = (select auth.uid())))
+          where r.book_id = b.id and r.reviewer_id = (select auth.uid())
+            and r.revoked_at is null))
   );
 $$;
 ```
@@ -41,7 +42,11 @@ planner treat the result as a constant rather than re-deriving it per row.
 ## The grant
 
 A grant is a row: `book_reviewers(book_id, reviewer_id)`, unique on the pair,
-referencing an account that already exists. Revoking is deleting the row.
+referencing an account that already exists. Revoking **marks** the row with a
+`revoked_at` and never deletes it — this decision originally deleted it, which
+ADR-0011 found to contradict the promise below that a revoked Reviewer's address
+stays visible. Reading requires an unrevoked row; reading an address accepts any
+row.
 
 Keying on the Reviewer's **account id** rather than their email address was the
 close call. Email is what an Author types and what ADR-0001 describes the grant
@@ -65,8 +70,9 @@ public.grant_access(book uuid, email text)
 `security definer`, run as the Author, which checks that they own the Book,
 lowercases and trims the address, looks up the account, and refuses three
 things: an address with no account, a Book with no Versions yet (ADR-0008), and
-a grant that already exists. It answers "granted" or names which refusal
-applied. Making the grant a function rather than an insert is what lets the
+a grant that already exists **and is not revoked** — granting a revoked address
+clears its mark rather than refusing (ADR-0011). It answers "granted" or names
+which refusal applied. Making the grant a function rather than an insert is what lets the
 lookup happen somewhere the Author cannot read, and it puts ADR-0008's
 zero-Version refusal in the one place a grant can be created rather than in a
 trigger that exists to catch a path the app never takes.
@@ -78,7 +84,9 @@ which `Readme.md:63` requires anyway.
 Revoking removes reading and nothing else. Every Comment and Thread the Reviewer
 wrote stays exactly as it was, their address still shown beside it — deleting
 their words would tear holes in discussions other people are still having and
-would destroy the Author's own record of the review.
+would destroy the Author's own record of the review. The kept row is what makes
+that address readable: the rule below is *shares a Book*, and only a row that
+outlives the revoke satisfies it.
 
 ## Rows, columns, and timing are three different questions
 
@@ -129,8 +137,9 @@ an old Version quietly stops being a sealed record.
 
 `auth.users` is not readable by a client, so a `public.users` table holds the
 account id and the email address, kept in step with `auth.users` by a trigger on
-insert. It is readable only where the reader and the subject share a Book — the
-one place a join is unavoidable, and worth it. Making it readable to every
+insert. It is readable only where the reader and the subject share a Book, which
+a revoked grant row still counts as (ADR-0011) — the one place a join is
+unavoidable, and worth it. Making it readable to every
 signed-in account would have been simpler, and was rejected because the platform
 holds unpublished manuscripts under private review, where the fact that a
 particular person is on it at all is itself a disclosure.
@@ -200,7 +209,8 @@ already typed.
 
 **A revoked Reviewer's address stays visible** to everyone still on the Book,
 because it is attached to Comments that stay. Revoking is not erasure and cannot
-be sold as one.
+be sold as one. It is also not eviction: the revoked Reviewer keeps whatever page
+is already in front of them until their next request (ADR-0011).
 
 **`public.users` can drift from `auth.users`.** An account created by any route
 that skips the trigger is invisible to the grant lookup and shows no address

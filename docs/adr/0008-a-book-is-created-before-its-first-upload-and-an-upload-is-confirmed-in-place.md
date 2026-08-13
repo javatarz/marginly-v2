@@ -94,7 +94,9 @@ reach a Version.
 
 **An empty Book is a state every Author-facing read must survive.** A Book page,
 a dashboard row and a Version list all have a zero-Version case, and the grant
-path has a refusal that exists for no other reason.
+path has a refusal that exists for no other reason. ADR-0011 gives each of them a
+shape: the row reads as holding no Versions, and the Book page is itself with an
+Upload prompt where the text would be.
 
 **A wrong-file Upload is permanent.** One confirm screen stands between a
 misclick and a junk Version whose arrival Unlinks a Book's Threads. The recovery
