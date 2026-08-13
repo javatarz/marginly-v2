@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 
 import { deleteBook } from "./delete-book-action";
 import styles from "./page.module.css";
+import { UploadForm } from "./upload-form";
 import { RenameDialog } from "./rename-dialog";
 
 // Per-request and per-account, the same as the dashboard: the row that comes back
@@ -31,6 +32,11 @@ export const dynamic = "force-dynamic";
  * Reviewer, and delete renders only while the Book holds no Versions (ADR-0011). The
  * policies in `20260813200000_rename_and_delete_a_book.sql` are the real boundary; this
  * check only decides whether the button is worth showing.
+ *
+ * #25 lands the Upload act itself, straight through with no preview or confirm (#26
+ * inserts that step later) and no reading view yet (a later ticket renders a Version's
+ * HTML) — so a Book with Versions shows only how many it holds, beside the same
+ * control that landed the first one.
  */
 export default async function BookPage({
   params,
@@ -89,9 +95,19 @@ export default async function BookPage({
 
       <main className={styles.content}>
         <p className={styles.prompt}>
-          This Book holds no Versions yet. Upload the first one to begin.
+          {book.latest_version_number === 0
+            ? "This Book holds no Versions yet. Upload the first one to begin."
+            : versionsHeldMessage(book.latest_version_number)}
         </p>
+
+        <UploadForm bookId={book.id} />
       </main>
     </>
   );
+}
+
+function versionsHeldMessage(count: number): string {
+  return count === 1
+    ? "This Book holds 1 Version."
+    : `This Book holds ${count} Versions.`;
 }

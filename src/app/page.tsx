@@ -4,7 +4,11 @@ import type { ReactNode } from "react";
 
 import { SIGN_IN_PATH } from "@/lib/auth/route-access";
 import { createBookProblemMessage } from "@/lib/books/create-book-problem";
-import { presentDashboard, type BookList } from "@/lib/dashboard/dashboard-view";
+import {
+  latestUploadPerBook,
+  presentDashboard,
+  type BookList,
+} from "@/lib/dashboard/dashboard-view";
 import { createClient } from "@/lib/supabase/server";
 
 import { createBook } from "./create-book-action";
@@ -54,6 +58,17 @@ export default async function Dashboard({
     .from("books")
     .select("id, name, author_id, latest_version_number, created_at");
 
+  const { data: versions } = await supabase
+    .from("versions")
+    .select("book_id, created_at");
+
+  const latestUploadedAt = latestUploadPerBook(
+    (versions ?? []).map((version) => ({
+      bookId: version.book_id,
+      createdAt: version.created_at,
+    })),
+  );
+
   const view = presentDashboard({
     accountId: user.id,
     books: (books ?? []).map((book) => ({
@@ -61,10 +76,7 @@ export default async function Dashboard({
       name: book.name,
       authorId: book.author_id,
       versionCount: book.latest_version_number,
-      // When the latest Version was Uploaded arrives with the `versions` table (#25).
-      // Every Book holds none today, so every row reads as holding none and sorts by
-      // when it was created — which is what ADR-0011 asks for in that case anyway.
-      latestUploadedAt: null,
+      latestUploadedAt: latestUploadedAt.get(book.id) ?? null,
       createdAt: book.created_at,
     })),
   });

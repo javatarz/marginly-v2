@@ -102,6 +102,35 @@ export type Database = {
         }
         Relationships: []
       }
+      versions: {
+        Row: {
+          book_id: string
+          created_at: string
+          id: string
+          version_number: number
+        }
+        Insert: {
+          book_id: string
+          created_at?: string
+          id?: string
+          version_number: number
+        }
+        Update: {
+          book_id?: string
+          created_at?: string
+          id?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "versions_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

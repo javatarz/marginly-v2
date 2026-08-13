@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  latestUploadPerBook,
   presentDashboard,
   type BookList,
   type BookRecord,
@@ -212,5 +213,41 @@ describe("a dashboard with nothing on it", () => {
 
     expect(view.owned.emptyMessage).toBeNull();
     expect(view.shared.emptyMessage).toBeNull();
+  });
+});
+
+describe("which Upload a Book dates itself by", () => {
+  it("says a Book with no Versions holds no Upload date", () => {
+    expect(latestUploadPerBook([]).get("book-1")).toBeUndefined();
+  });
+
+  it("takes the one Version a Book holds", () => {
+    const latest = latestUploadPerBook([
+      { bookId: "book-1", createdAt: "2026-08-01T09:00:00Z" },
+    ]);
+
+    expect(latest.get("book-1")).toBe("2026-08-01T09:00:00Z");
+  });
+
+  // A Version is immutable and numbered one past the last (ADR-0009), so they arrive in
+  // increasing order — but the newest-first check here does not assume that order holds.
+  it("takes the newest of several Versions, regardless of row order", () => {
+    const latest = latestUploadPerBook([
+      { bookId: "book-1", createdAt: "2026-08-10T09:00:00Z" },
+      { bookId: "book-1", createdAt: "2026-07-01T09:00:00Z" },
+      { bookId: "book-1", createdAt: "2026-08-05T09:00:00Z" },
+    ]);
+
+    expect(latest.get("book-1")).toBe("2026-08-10T09:00:00Z");
+  });
+
+  it("keeps each Book's latest Upload separate", () => {
+    const latest = latestUploadPerBook([
+      { bookId: "book-1", createdAt: "2026-08-01T09:00:00Z" },
+      { bookId: "book-2", createdAt: "2026-08-02T09:00:00Z" },
+    ]);
+
+    expect(latest.get("book-1")).toBe("2026-08-01T09:00:00Z");
+    expect(latest.get("book-2")).toBe("2026-08-02T09:00:00Z");
   });
 });

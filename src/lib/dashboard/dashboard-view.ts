@@ -66,6 +66,27 @@ const UPLOAD_DATE = new Intl.DateTimeFormat("en-GB", {
   timeZone: "UTC",
 });
 
+/**
+ * Which Upload a Book's dashboard row dates itself by: the newest `created_at` among
+ * its Versions. A Version is immutable and numbered one past the last (ADR-0009), so
+ * they are written in increasing order and the newest row is always the latest Upload
+ * — there is no later Version whose timestamp could be smaller.
+ */
+export function latestUploadPerBook(
+  versions: readonly { bookId: string; createdAt: string }[],
+): Map<string, string> {
+  const latest = new Map<string, string>();
+
+  for (const version of versions) {
+    const current = latest.get(version.bookId);
+    if (current === undefined || Date.parse(version.createdAt) > Date.parse(current)) {
+      latest.set(version.bookId, version.createdAt);
+    }
+  }
+
+  return latest;
+}
+
 export function presentDashboard({ accountId, books }: DashboardInput): DashboardView {
   const owned = books.filter((entry) => entry.authorId === accountId);
   const shared = books.filter((entry) => entry.authorId !== accountId);

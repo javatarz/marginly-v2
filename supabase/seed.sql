@@ -1,0 +1,13 @@
+-- Local-stack setup that is not schema, so it does not belong in a migration.
+--
+-- `supabase db reset` and a first `supabase start` both run this after the migrations
+-- (config.toml's [db.seed]), and — unlike a migration — `supabase db push` never sends it
+-- to a linked project. That is exactly the boundary CODING_STANDARDS.md §4 draws for a
+-- credential: a fixed value here only ever reaches the throwaway local Postgres this
+-- repo's own tooling already exposes as "postgres"/"postgres", and never a deployed one.
+--
+-- 20260813200000_upload_a_version.sql creates `edge_functions` with no password at all,
+-- because a migration's SQL is exactly what `db push` would carry to production
+-- verbatim. A deployed project's password is an operator's own one-off, set by hand and
+-- held only in that Edge Function's secrets — never here.
+alter role edge_functions with password 'edge-functions-local-dev-only';

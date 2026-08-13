@@ -33,6 +33,7 @@
 
 * **Dry-Run Default:** Any code triggering external side-effects (e.g., messaging via respond.io or sending emails) must run in **dry-run mode by default**. Outbound actions must be explicitly gated behind a real-send flag.
 * **Secrets & Security:** Never hardcode credentials, tokens, or PII. Secrets must reside exclusively in `.env` files locally and in platform environment managers in deployed environments.
+* **One committed exception:** `supabase/functions/.env` is checked in on purpose, so that a clean `git clone` gets a working local stack with no manual per-developer setup step. It holds no real secret — only a fixed, local-only Supavisor pooler URL that `supabase/seed.sql` resets to the same value on every `db reset`, scoped to a Docker-internal hostname (`pooler`) unreachable outside the local stack. A deployed project's real equivalent is never written to a file; it is set with `supabase secrets set`.
 
 ---
 
