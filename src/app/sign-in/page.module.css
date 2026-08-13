@@ -1,0 +1,62 @@
+.page {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 26rem;
+  padding: var(--space-6);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.notice {
+  color: var(--color-ink-muted);
+}
+
+.alert {
+  color: var(--color-danger);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  font-size: var(--font-size-sm);
+  color: var(--color-ink-muted);
+}
+
+.input {
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  color: var(--color-ink);
+  background: var(--color-bg);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.button {
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  color: var(--color-accent-contrast);
+  background: var(--color-accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.footnote {
+  font-size: var(--font-size-sm);
+  color: var(--color-ink-muted);
+}

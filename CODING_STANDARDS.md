@@ -45,3 +45,13 @@
 
 
 * **Commits & Branches:** A single imperative subject line, no body and no trailers. Commit directly to `main`; rebase, never merge. See ADR-0013.
+
+---
+
+## 6. Styling
+
+* **CSS Modules, no global classes:** A component's look lives in a `*.module.css` file beside it, so its class names are hashed. The only global (non-Module) stylesheets are `src/styles/tokens.css` and `src/styles/reset.css`, and neither may declare a class selector.
+* **No inline `style`:** An inline `style={{ ... }}` in a `.tsx` file is forbidden — it bypasses the stylesheet.
+* **Every value comes from the token file:** Colour, type scale, spacing and radius are custom properties in `src/styles/tokens.css`. No raw hex colour or `px` value anywhere else.
+* **Why:** ADR-0012 keeps an Author's `class` and `id` attributes on a Book's HTML, and the Book renders inside Marginly's own document with no iframe and no shadow root — so a global class here would style the Author's prose too, moving the text's metrics a Highlight is measured against.
+* **Guard:** `src/lib/style-guard/rules.ts` and `tests/style-guard.test.ts` enforce all three rules under `npm run test`, and therefore `npm run verify` and `npm run gate`.

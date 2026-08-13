@@ -1,0 +1,102 @@
+/**
+ * The minimal reset, and the house typography ADR-0012 promises.
+ *
+ * This is one of two global stylesheets the style guard allowlists by name
+ * (tests/style-guard.test.ts) — the other is tokens.css. Every selector here is an
+ * element or `*`, never a class: a global `.class` would reach into a Book's HTML,
+ * because ADR-0012 keeps an Author's `class` attributes and the Book renders inside
+ * this same document with no iframe and no shadow root.
+ *
+ * Body applies the reading type scale at the element level so a Version's content —
+ * a fragment inside this `<body>` — inherits it without a stylesheet of its own
+ * (#27), and so does every semantic tag (`h1`, `em`, `pre`, `blockquote`, `mark`) an
+ * Author's export emits.
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-reading);
+  font-size: var(--font-size-base);
+  line-height: var(--leading-reading);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+ul,
+ol,
+blockquote,
+figure {
+  margin: 0;
+}
+
+h1 {
+  font-size: var(--font-size-2xl);
+  line-height: var(--leading-tight);
+}
+
+h2 {
+  font-size: var(--font-size-xl);
+  line-height: var(--leading-tight);
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-lg);
+  line-height: var(--leading-base);
+}
+
+ul,
+ol {
+  padding-left: var(--space-5);
+}
+
+blockquote {
+  padding-left: var(--space-4);
+  border-left: var(--border-width) solid var(--color-border);
+  color: var(--color-ink-muted);
+}
+
+pre,
+code,
+kbd,
+samp {
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+}
+
+a {
+  color: var(--color-accent);
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+/* ADR-0012: an Author's <mark> is drawn underlined, never shaded — shading is
+   reserved for a Thread's Highlight, and an Author's own yellow would send a
+   Reviewer hunting the margin for a Thread that is not there. */
+mark {
+  background: none;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--color-accent);
+}

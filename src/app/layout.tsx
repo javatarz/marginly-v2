@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import "@/styles/tokens.css";
+import "@/styles/reset.css";
+
 export const metadata: Metadata = {
   title: "Marginly",
   description: "A review platform holding a Book across every draft of it.",

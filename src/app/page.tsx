@@ -4,6 +4,8 @@ import { SIGN_IN_PATH } from "@/lib/auth/route-access";
 import { presentDashboard, type BookList } from "@/lib/dashboard/dashboard-view";
 import { createClient } from "@/lib/supabase/server";
 
+import styles from "./page.module.css";
+
 // Per-request and per-account: it reads the session's cookies and the Books the policies
 // let that account see. There is nothing here to prerender at build time.
 export const dynamic = "force-dynamic";
@@ -54,9 +56,13 @@ export default async function Dashboard() {
   });
 
   return (
-    <main>
-      <h1>Marginly</h1>
-      <p>Signed in as {account?.email ?? "an account with no readable address"}.</p>
+    <main className={styles.page}>
+      <header className={styles.header}>
+        <h1>Marginly</h1>
+        <p className={styles.signedInAs}>
+          Signed in as {account?.email ?? "an account with no readable address"}.
+        </p>
+      </header>
 
       <Books heading="Books I own" list={view.owned} />
       <Books heading="Books shared with me" list={view.shared} />
@@ -71,18 +77,20 @@ export default async function Dashboard() {
  */
 function Books({ heading, list }: { heading: string; list: BookList }) {
   return (
-    <section>
+    <section className={styles.section}>
       <h2>{heading}</h2>
 
       {list.emptyMessage ? (
-        <p>{list.emptyMessage}</p>
+        <p className={styles.empty}>{list.emptyMessage}</p>
       ) : (
-        <ul>
+        <ul className={styles.list}>
           {list.rows.map((row) => (
-            <li key={row.id}>
-              <span>{row.name}</span>
-              <span>{row.versionsHeld}</span>
-              {row.latestUpload ? <span>Uploaded {row.latestUpload}</span> : null}
+            <li key={row.id} className={styles.row}>
+              <span className={styles.name}>{row.name}</span>
+              <span className={styles.meta}>
+                <span>{row.versionsHeld}</span>
+                {row.latestUpload ? <span>Uploaded {row.latestUpload}</span> : null}
+              </span>
             </li>
           ))}
         </ul>
