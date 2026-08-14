@@ -7,6 +7,10 @@ Vocabulary is defined in [`CONTEXT.md`](./CONTEXT.md). Decisions are recorded in
 [`docs/adr/`](./docs/adr/). Open questions are tracked on
 [the map](https://github.com/javatarz/marginly-v2/issues/1).
 
+## Demo
+
+<video src="./marginly-demo.mp4" controls width="720"></video>
+
 ## Running it
 
 Two runtimes in one repo, sharing no code (ADR-0013): a Next.js App Router app on
