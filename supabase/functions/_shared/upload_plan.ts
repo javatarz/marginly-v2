@@ -56,6 +56,11 @@ export function pendingObjectPath(bookId: string, relativePath: string): string 
   return `${pendingPrefix(bookId)}/${relativePath}`;
 }
 
+/** Where the preview staged the new Version's extracted text — the confirm's carry (#33) reads it from here to match against. */
+export function pendingExtractedTextPath(bookId: string): string {
+  return pendingObjectPath(bookId, EXTRACTED_TEXT);
+}
+
 /**
  * `{book_id}/pending/manifest.json` — the one file that makes the pending prefix
  * self-describing. There is deliberately no job record in the database (ADR-0015), so

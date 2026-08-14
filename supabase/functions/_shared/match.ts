@@ -87,6 +87,12 @@ function unlinkedPlacement(previous: Previous, textLength: number): number {
 
 function findOccurrences(haystack: string, needle: string): TextRange[] {
   const normalised = needle.trim().replaceAll(/\s+/g, " ");
+  if (normalised.length === 0) {
+    // An empty pattern would match a zero-length string at every position without ever
+    // advancing past it, looping forever below — a whitespace-only selected or
+    // paragraph text (start_thread accepts either, uninspected) can produce one.
+    return [];
+  }
   const pattern = new RegExp(toWhitespaceTolerantPattern(normalised), "g");
   const ranges: TextRange[] = [];
   let match: RegExpExecArray | null;

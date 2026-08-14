@@ -5,6 +5,7 @@ import {
   confirmCleanupPlan,
   isBookId,
   isDuplicateOfLatest,
+  pendingExtractedTextPath,
   pendingManifestPath,
   pendingObjectPath,
   pendingPrefix,
@@ -98,6 +99,10 @@ Deno.test("computes a pending object path from the Book id and a relative path",
 
 Deno.test("computes the pending manifest path from the Book id", () => {
   assertEquals(pendingManifestPath("book-1"), "book-1/pending/manifest.json");
+});
+
+Deno.test("computes the pending extracted text path from the Book id", () => {
+  assertEquals(pendingExtractedTextPath("book-1"), "book-1/pending/text.txt");
 });
 
 Deno.test("plans a manifest holding the hash and every planned object's path", () => {

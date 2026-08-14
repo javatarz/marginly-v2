@@ -196,3 +196,22 @@ Deno.test("several Open Threads are each matched independently", () => {
 Deno.test("no Open Threads produces no results", () => {
   assertEquals(matchThreads([], "any text"), []);
 });
+
+Deno.test("a whitespace-only selected text has no occurrences and leaves the Thread Unlinked", () => {
+  const [result] = matchThreads(
+    [linkedThread("t1", "   ", "the quick brown fox jumps", { start: 3, end: 6 })],
+    "the quick brown fox jumps",
+  );
+
+  assertEquals(result, { threadId: "t1", status: "unlinked", threadPosition: 3 });
+});
+
+Deno.test("a whitespace-only paragraph text never matches as a disambiguating paragraph", () => {
+  const text = "brown fox here, and brown fox there too";
+  const [result] = matchThreads(
+    [linkedThread("t1", "brown fox", "   ")],
+    text,
+  );
+
+  assertEquals(result.status, "unlinked");
+});

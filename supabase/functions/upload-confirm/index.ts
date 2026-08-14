@@ -1,12 +1,15 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import postgres from "postgres";
 
+import { type OpenThreadVersionRow, toOpenThreads } from "../_shared/carry.ts";
 import { jsonResponse } from "../_shared/http.ts";
 import { decodeBearerClaims } from "../_shared/jwt.ts";
+import { matchThreads } from "../_shared/match.ts";
 import {
   confirmCleanupPlan,
   isBookId,
   type PendingManifest,
+  pendingExtractedTextPath,
   pendingManifestPath,
   pendingObjectPath,
   stagingZipPath,
@@ -53,9 +56,13 @@ Deno.serve(async (req) => {
     { global: { headers: { Authorization: authorization! } } },
   ).storage;
 
-  const { data: manifestFile, error: manifestDownloadError } = await storage
-    .from("staging")
-    .download(pendingManifestPath(bookId));
+  const [
+    { data: manifestFile, error: manifestDownloadError },
+    { data: textFile, error: textDownloadError },
+  ] = await Promise.all([
+    storage.from("staging").download(pendingManifestPath(bookId)),
+    storage.from("staging").download(pendingExtractedTextPath(bookId)),
+  ]);
 
   if (manifestDownloadError || !manifestFile) {
     return jsonResponse(
@@ -74,12 +81,20 @@ Deno.serve(async (req) => {
     );
   }
 
+  if (textDownloadError || !textFile) {
+    return jsonResponse(
+      { ok: false, message: "The staged preview was unreadable. Preview the Upload again." },
+      500,
+    );
+  }
+
   const result = await commitVersion({
     sql: postgres(requireEnv("EDGE_DB_URL"), { prepare: false }),
     storage,
     bookId,
     sub: claims.sub,
     manifest,
+    newText: await textFile.text(),
   });
 
   if (!result.ok) {
@@ -97,15 +112,20 @@ type CommitResult =
   | { readonly ok: false };
 
 /**
- * ADR-0009's one transaction: the bump and the `versions` insert, nothing partial.
- * `set local role` and `set local request.jwt.claims` (both LOCAL, since Supavisor's
- * transaction-mode pooling pins this connection to one transaction only) reproduce by
- * hand what PostgREST does implicitly, so the same RLS that governs a browser's own
- * request governs this write.
+ * ADR-0009's one transaction: the bump, the `versions` insert and every Open Thread's
+ * carry (#33), nothing partial. `set local role` and `set local request.jwt.claims`
+ * (both LOCAL, since Supavisor's transaction-mode pooling pins this connection to one
+ * transaction only) reproduce by hand what PostgREST does implicitly, so the same RLS
+ * that governs a browser's own request governs this write.
  *
  * The bump's row lock is what makes two concurrent confirms on one Book stack rather
  * than collide (ADR-0009): the second transaction's `update ... returning` waits for
  * the first to commit or roll back, then reads the number it left behind.
+ *
+ * The Open Thread set is read here, inside this same transaction, against the
+ * previous latest Version's `thread_versions` rows — never from an earlier call —
+ * so a Thread started while the Author sat at the preview is carried too. Matching
+ * itself is `matchThreads` (#32), a pure function; this is only the wiring around it.
  *
  * Storage cannot join the transaction, so the copy from the preview's staged bundle to
  * the Version's prefix runs inside it anyway, using the number the bump produced. A
@@ -120,8 +140,9 @@ async function commitVersion(args: {
   bookId: string;
   sub: string;
   manifest: PendingManifest;
+  newText: string;
 }): Promise<CommitResult> {
-  const { sql, storage, bookId, sub, manifest } = args;
+  const { sql, storage, bookId, sub, manifest, newText } = args;
   const copiedPaths: string[] = [];
 
   async function runCleanup(outcome: "committed" | "failed") {
@@ -144,6 +165,11 @@ async function commitVersion(args: {
         true
       )`;
 
+      // The same lock start_thread takes (#33's migration): serializes this bump
+      // against a concurrent start_thread call on this Book, so the Open Thread set
+      // read below is never missing one that landed in the gap between the two.
+      await tx`select pg_advisory_xact_lock(847001001, hashtext(${bookId}))`;
+
       const [row] = await tx<{ latest_version_number: number }[]>`
         update books
         set latest_version_number = latest_version_number + 1
@@ -156,6 +182,23 @@ async function commitVersion(args: {
       }
 
       const versionNumber = row.latest_version_number;
+      const previousVersionNumber = versionNumber - 1;
+
+      const openThreadRows = await tx<OpenThreadVersionRow[]>`
+        select
+          t.id as thread_id,
+          t.selected_text,
+          t.paragraph_text,
+          tv.status,
+          lower(tv.text_position) as text_position_start,
+          upper(tv.text_position) as text_position_end,
+          tv.thread_position
+        from threads t
+        join thread_versions tv on tv.thread_id = t.id and tv.book_id = t.book_id
+        where t.book_id = ${bookId} and tv.version_number = ${previousVersionNumber}
+      `;
+
+      const matched = matchThreads(toOpenThreads(openThreadRows), newText);
 
       for (const path of manifest.paths) {
         const destination = versionObjectPath(bookId, versionNumber, path);
@@ -174,6 +217,23 @@ async function commitVersion(args: {
         insert into versions (book_id, version_number, hash)
         values (${bookId}, ${versionNumber}, ${manifest.hash})
       `;
+
+      for (const thread of matched) {
+        if (thread.status === "linked") {
+          await tx`
+            insert into thread_versions (thread_id, book_id, version_number, status, text_position)
+            values (
+              ${thread.threadId}, ${bookId}, ${versionNumber}, 'linked',
+              int4range(${thread.textPosition.start}, ${thread.textPosition.end})
+            )
+          `;
+        } else {
+          await tx`
+            insert into thread_versions (thread_id, book_id, version_number, status, thread_position)
+            values (${thread.threadId}, ${bookId}, ${versionNumber}, 'unlinked', ${thread.threadPosition})
+          `;
+        }
+      }
 
       return versionNumber;
     });
