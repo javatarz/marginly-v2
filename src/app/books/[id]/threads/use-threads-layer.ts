@@ -6,7 +6,15 @@ import { nextSelectedThreadId } from "@/lib/reading/next-selected-thread";
 import { mergeIntervals, type Interval } from "@/lib/reading/union-intervals";
 import { createClient } from "@/lib/supabase/browser";
 
-import { addComment, deleteComment, editComment, fetchVersionThreads, startThread, type ThreadData } from "./threads-api";
+import {
+  addComment,
+  deleteComment,
+  editComment,
+  fetchVersionThreads,
+  resolveThread,
+  startThread,
+  type ThreadData,
+} from "./threads-api";
 
 export type Rect = { top: number; left: number; width: number; height: number };
 
@@ -22,7 +30,7 @@ export type PendingSelection = {
 export type ThreadsLayerState = {
   orderedThreads: readonly ThreadData[];
   selectedThreadId: string | null;
-  selectThread: (id: string) => void;
+  selectThread: (id: string | null) => void;
   unionRects: readonly Rect[];
   selectedRects: readonly Rect[];
   marginPositions: readonly MarginPosition[];
@@ -54,6 +62,11 @@ export type ThreadsLayerState = {
   deleteErrorCommentId: string | null;
   deleteError: string | null;
   removeComment: (commentId: string) => void;
+  resolveNote: string;
+  setResolveNote: (note: string) => void;
+  resolveSubmitting: boolean;
+  resolveError: string | null;
+  submitResolve: (threadId: string) => void;
 };
 
 /**
@@ -97,6 +110,10 @@ export function useThreadsLayer({
   const [deleteErrorCommentId, setDeleteErrorCommentId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  const [resolveNote, setResolveNote] = useState("");
+  const [resolveSubmitting, setResolveSubmitting] = useState(false);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+
   const [unionRects, setUnionRects] = useState<readonly Rect[]>([]);
   const [selectedRects, setSelectedRects] = useState<readonly Rect[]>([]);
   const [marginTops, setMarginTops] = useState<ReadonlyMap<string, number>>(new Map());
@@ -125,6 +142,8 @@ export function useThreadsLayer({
         setEditError(null);
         setDeleteErrorCommentId(null);
         setDeleteError(null);
+        setResolveNote("");
+        setResolveError(null);
       }
     });
     return () => {
@@ -448,6 +467,31 @@ export function useThreadsLayer({
     [supabase, bookId, versionNumber],
   );
 
+  // Resolving a Thread (#31), optionally with a final note. The note textarea is
+  // shared across every Thread box rather than keyed per Thread — only one Thread can
+  // be selected at a time, and `submitResolve` takes the Thread it is resolving
+  // explicitly, so nothing here needs to track which box the note belongs to.
+  const submitResolve = useCallback(
+    (threadId: string) => {
+      setResolveSubmitting(true);
+      setResolveError(null);
+
+      const note = resolveNote.trim();
+      resolveThread(supabase, { threadId, note: note.length > 0 ? note : null }).then((result) => {
+        setResolveSubmitting(false);
+
+        if (result?.error) {
+          setResolveError(result.error);
+          return;
+        }
+
+        setResolveNote("");
+        fetchVersionThreads(supabase, bookId, versionNumber).then(setThreads);
+      });
+    },
+    [resolveNote, supabase, bookId, versionNumber],
+  );
+
   return {
     orderedThreads,
     selectedThreadId,
@@ -486,6 +530,11 @@ export function useThreadsLayer({
     deleteErrorCommentId,
     deleteError,
     removeComment,
+    resolveNote,
+    setResolveNote,
+    resolveSubmitting,
+    resolveError,
+    submitResolve,
   };
 }
 

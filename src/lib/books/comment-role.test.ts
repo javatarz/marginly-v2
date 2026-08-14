@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canModifyComment, commentRole } from "./comment-role";
+import { canModifyComment, canResolveThread, commentRole } from "./comment-role";
 
 describe("a Comment's writer's role", () => {
   it("is the Author when the writer is the Book's Author", () => {
@@ -28,6 +28,32 @@ describe("whether to offer Edit/Delete for a Comment", () => {
   it("refuses it once the Comment's Version is no longer latest", () => {
     expect(
       canModifyComment({ commentAuthorId: "user-1", currentUserId: "user-1", isLatest: false }),
+    ).toBe(false);
+  });
+});
+
+describe("whether to offer Resolve for a Thread", () => {
+  it("offers it to the Author on the latest Version of an Open Thread", () => {
+    expect(
+      canResolveThread({ bookAuthorId: "author-id", currentUserId: "author-id", isLatest: true, resolved: false }),
+    ).toBe(true);
+  });
+
+  it("refuses it to a Reviewer", () => {
+    expect(
+      canResolveThread({ bookAuthorId: "author-id", currentUserId: "reviewer-id", isLatest: true, resolved: false }),
+    ).toBe(false);
+  });
+
+  it("refuses it once the Version is no longer latest", () => {
+    expect(
+      canResolveThread({ bookAuthorId: "author-id", currentUserId: "author-id", isLatest: false, resolved: false }),
+    ).toBe(false);
+  });
+
+  it("refuses it once the Thread is already Resolved", () => {
+    expect(
+      canResolveThread({ bookAuthorId: "author-id", currentUserId: "author-id", isLatest: true, resolved: true }),
     ).toBe(false);
   });
 });

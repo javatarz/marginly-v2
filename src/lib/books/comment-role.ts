@@ -31,3 +31,23 @@ export function canModifyComment({
 }): boolean {
   return commentAuthorId === currentUserId && isLatest;
 }
+
+/**
+ * Whether to offer Resolve for a Thread (#31): only the Author, only on the latest
+ * Version, and only while the Thread is still Open — `resolve_thread` refuses all
+ * three by hand (a Reviewer's attempt raises; `enforce_thread_resolved_once_and_on_latest`
+ * refuses a second resolution), so this mirrors that same set of conditions.
+ */
+export function canResolveThread({
+  bookAuthorId,
+  currentUserId,
+  isLatest,
+  resolved,
+}: {
+  bookAuthorId: string;
+  currentUserId: string;
+  isLatest: boolean;
+  resolved: boolean;
+}): boolean {
+  return currentUserId === bookAuthorId && isLatest && !resolved;
+}

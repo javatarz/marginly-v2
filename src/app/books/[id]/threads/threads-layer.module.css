@@ -56,10 +56,20 @@
   font: inherit;
   font-size: var(--font-size-sm);
   color: var(--color-ink);
-  background: var(--color-bg);
+  background: var(--color-surface);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
   resize: vertical;
+}
+
+.composerInput::placeholder {
+  color: var(--color-ink-muted);
+}
+
+.composerInput:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 var(--border-width) var(--color-accent);
 }
 
 .composerError {
@@ -110,7 +120,9 @@
   position: absolute;
   left: 0;
   right: 0;
+  max-height: var(--thread-box-max-height);
   padding: var(--space-3);
+  overflow-y: auto;
   font-size: var(--font-size-sm);
   background: var(--color-surface);
   border: var(--border-width) solid var(--color-border);
@@ -135,6 +147,11 @@
   margin: 0 0 var(--space-1);
   color: var(--color-ink-muted);
   font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.commentMetaAuthor {
+  color: var(--color-accent);
 }
 
 .commentBody {
@@ -152,13 +169,36 @@
   padding: 0;
   font: inherit;
   font-size: var(--font-size-sm);
-  color: var(--color-ink-muted);
+  font-weight: 600;
+  color: var(--color-accent);
   background: none;
   border: none;
   cursor: pointer;
 }
 
+.commentAction:hover {
+  text-decoration: underline;
+}
+
 .commentAction:disabled {
   opacity: 0.5;
   cursor: default;
+  text-decoration: none;
+}
+
+.commentActionDelete {
+  color: var(--color-danger);
+}
+
+.resolvedBadge {
+  display: inline-block;
+  margin: 0 0 var(--space-2);
+  padding: 0 var(--space-2);
+  color: var(--color-accent-contrast);
+  background: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border-radius: var(--radius-sm);
 }

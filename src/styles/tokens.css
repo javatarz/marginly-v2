@@ -34,6 +34,9 @@
   --measure-reading: 38rem;
   /* ADR-0007's margin: a fixed right-hand column, wide enough for a Comment's prose. */
   --margin-width: 18rem;
+  /* An open Thread box scrolls its own contents past this height instead of growing
+     without bound and shoving every later Thread down the margin. */
+  --thread-box-max-height: 26rem;
 
   /* Space */
   --space-1: 0.25rem;

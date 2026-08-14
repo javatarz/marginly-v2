@@ -16,7 +16,11 @@ import { buildZip } from "./support/zip";
 const AUTHOR = "carry-author@example.com";
 const REVIEWER = "carry-reviewer@example.com";
 
-const CARRY_BOOK = "ffffffff-0000-4000-8000-000000000001";
+// A dedicated prefix, not `ffffffff-...`: that one collides with
+// tests/comments-policies.test.ts's own READY_BOOK, whose `beforeAll` force-resets
+// `latest_version_number` back to 1 on every run — corrupting this file's own Version
+// counter whenever both suites run in the same `vitest` invocation.
+const CARRY_BOOK = "22222222-0000-4000-8000-000000000001";
 
 const BOOKS = [CARRY_BOOK];
 
@@ -236,5 +240,34 @@ describe("carrying Open Threads across an Upload", () => {
 
     const stillThere = await threadVersionRow(threadId!, v1);
     expect(stillThere).not.toBeNull();
+  }, 60_000);
+
+  it("does not carry a Resolved Thread onto the next Version (#31/ADR-0002)", async () => {
+    const v1 = await previewAndConfirm(
+      CARRY_BOOK,
+      zip([{ path: "index.html", content: `<p>Resolved before it can carry ${RUN}.</p>` }]),
+    );
+
+    const { data: threadId, error: startError } = await author.rpc("start_thread", {
+      book: CARRY_BOOK,
+      range_start: 0,
+      range_end: 8,
+      selected_text: "Resolved",
+      paragraph_text: `Resolved before it can carry ${RUN}.`,
+      body: "will be Resolved before the next Upload",
+    });
+    expect(startError).toBeNull();
+
+    const { error: resolveError } = await author.rpc("resolve_thread", { thread: threadId! });
+    expect(resolveError).toBeNull();
+
+    const v2 = await previewAndConfirm(
+      CARRY_BOOK,
+      zip([{ path: "index.html", content: `<p>Resolved before it can carry, still ${RUN}.</p>` }]),
+    );
+    expect(v2).toBe(v1 + 1);
+
+    const onV2 = await threadVersionRow(threadId!, v2);
+    expect(onV2).toBeNull();
   }, 60_000);
 });

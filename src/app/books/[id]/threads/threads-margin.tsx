@@ -2,7 +2,8 @@
 
 import { useMemo } from "react";
 
-import { canModifyComment, commentRole } from "@/lib/books/comment-role";
+import { canModifyComment, canResolveThread, commentRole } from "@/lib/books/comment-role";
+import { toggleSelectedThreadId } from "@/lib/reading/toggle-selected-thread";
 
 import type { ThreadsLayerState } from "./use-threads-layer";
 import styles from "./threads-layer.module.css";
@@ -46,8 +47,10 @@ export function ThreadsMargin({
             ref={(el) => state.registerMarginBox(thread.threadId, el)}
             className={selected ? `${styles.threadBox} ${styles.threadBoxSelected}` : styles.threadBox}
             style={topStyle(marginTopById.get(thread.threadId) ?? 0)}
-            onClick={() => state.selectThread(thread.threadId)}
+            onClick={() => state.selectThread(toggleSelectedThreadId(state.selectedThreadId, thread.threadId))}
           >
+            {thread.resolved ? <p className={styles.resolvedBadge}>Resolved</p> : null}
+
             {thread.comments.map((comment) => {
               const role = commentRole({ bookAuthorId, commentAuthorId: comment.authorId });
               const canModify = canModifyComment({
@@ -59,7 +62,15 @@ export function ThreadsMargin({
 
               return (
                 <div key={comment.id} className={styles.comment}>
-                  <p className={styles.commentMeta}>{role === "author" ? "Author" : "Reviewer"}</p>
+                  <p
+                    className={
+                      role === "author"
+                        ? `${styles.commentMeta} ${styles.commentMetaAuthor}`
+                        : styles.commentMeta
+                    }
+                  >
+                    {role === "author" ? "Author" : "Reviewer"}
+                  </p>
 
                   {isEditing ? (
                     <div onClick={(event) => event.stopPropagation()}>
@@ -103,7 +114,7 @@ export function ThreadsMargin({
                       </button>
                       <button
                         type="button"
-                        className={styles.commentAction}
+                        className={`${styles.commentAction} ${styles.commentActionDelete}`}
                         disabled={state.deletingCommentId === comment.id}
                         onClick={() => state.removeComment(comment.id)}
                       >
@@ -119,7 +130,7 @@ export function ThreadsMargin({
               );
             })}
 
-            {selected && state.isLatest ? (
+            {selected && state.isLatest && !thread.resolved ? (
               <div onClick={(event) => event.stopPropagation()}>
                 <textarea
                   className={styles.composerInput}
@@ -136,6 +147,34 @@ export function ThreadsMargin({
                     onClick={state.submitReply}
                   >
                     Reply
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {selected &&
+            canResolveThread({
+              bookAuthorId,
+              currentUserId,
+              isLatest: state.isLatest,
+              resolved: thread.resolved,
+            }) ? (
+              <div onClick={(event) => event.stopPropagation()}>
+                <textarea
+                  className={styles.composerInput}
+                  value={state.resolveNote}
+                  onChange={(event) => state.setResolveNote(event.target.value)}
+                  placeholder="Final note (optional)…"
+                />
+                {state.resolveError ? <p className={styles.composerError}>{state.resolveError}</p> : null}
+                <div className={styles.composerActions}>
+                  <button
+                    type="button"
+                    className={styles.composerSubmit}
+                    disabled={state.resolveSubmitting}
+                    onClick={() => state.submitResolve(thread.threadId)}
+                  >
+                    Resolve
                   </button>
                 </div>
               </div>

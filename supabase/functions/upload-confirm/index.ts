@@ -184,6 +184,10 @@ async function commitVersion(args: {
       const versionNumber = row.latest_version_number;
       const previousVersionNumber = versionNumber - 1;
 
+      // Only an Open Thread carries (#31/ADR-0002): `resolved_version_number is null`
+      // excludes a Thread the Author Resolved while the previous Version was still
+      // latest — otherwise it would gain a row on the new Version too, which ADR-0006
+      // says a Resolved Thread never does past the Version it was Resolved on.
       const openThreadRows = await tx<OpenThreadVersionRow[]>`
         select
           t.id as thread_id,
@@ -195,7 +199,9 @@ async function commitVersion(args: {
           tv.thread_position
         from threads t
         join thread_versions tv on tv.thread_id = t.id and tv.book_id = t.book_id
-        where t.book_id = ${bookId} and tv.version_number = ${previousVersionNumber}
+        where t.book_id = ${bookId}
+          and tv.version_number = ${previousVersionNumber}
+          and t.resolved_version_number is null
       `;
 
       const matched = matchThreads(toOpenThreads(openThreadRows), newText);

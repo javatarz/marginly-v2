@@ -182,6 +182,7 @@ export type Database = {
           created_version_number: number
           id: string
           paragraph_text: string
+          resolved_version_number: number | null
           selected_text: string
         }
         Insert: {
@@ -191,6 +192,7 @@ export type Database = {
           created_version_number: number
           id?: string
           paragraph_text: string
+          resolved_version_number?: number | null
           selected_text: string
         }
         Update: {
@@ -200,6 +202,7 @@ export type Database = {
           created_version_number?: number
           id?: string
           paragraph_text?: string
+          resolved_version_number?: number | null
           selected_text?: string
         }
         Relationships: [
@@ -216,6 +219,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "books"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "threads_book_id_resolved_version_number_fkey"
+            columns: ["book_id", "resolved_version_number"]
+            isOneToOne: false
+            referencedRelation: "versions"
+            referencedColumns: ["book_id", "version_number"]
           },
         ]
       }
@@ -277,6 +287,10 @@ export type Database = {
         Args: { book: string; email: string }
         Returns: undefined
       }
+      resolve_thread: {
+        Args: { note?: string; thread: string }
+        Returns: undefined
+      }
       start_thread: {
         Args: {
           body: string
@@ -294,6 +308,7 @@ export type Database = {
           comments: Json
           created_at: string
           created_by: string
+          resolved: boolean
           text_position: unknown
           thread_id: string
         }[]

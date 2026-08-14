@@ -18,6 +18,7 @@ export type ThreadData = {
   createdBy: string;
   createdAt: string;
   range: readonly [number, number];
+  resolved: boolean;
   comments: readonly ThreadComment[];
 };
 
@@ -45,6 +46,7 @@ export async function fetchVersionThreads(
     createdBy: row.created_by,
     createdAt: row.created_at,
     range: parseTextPosition(row.text_position as string),
+    resolved: row.resolved,
     comments: ((row.comments as RawComment[] | null) ?? []).map((comment) => ({
       id: comment.id,
       authorId: comment.author_id,
@@ -105,6 +107,27 @@ export async function addComment(
   }
 
   return { commentId: data };
+}
+
+/**
+ * Resolving a Thread (#31, `resolve_thread`), optionally leaving a final note as a
+ * Comment. No unit test — thin wiring over a `security definer` function, covered by
+ * tests/resolve-thread-policies.test.ts.
+ */
+export async function resolveThread(
+  supabase: SupabaseClient<Database>,
+  args: { threadId: string; note: string | null },
+): Promise<{ error: string } | undefined> {
+  const { error } = await supabase.rpc("resolve_thread", {
+    thread: args.threadId,
+    note: args.note ?? undefined,
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return undefined;
 }
 
 /**
