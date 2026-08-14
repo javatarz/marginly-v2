@@ -9,7 +9,7 @@ Vocabulary is defined in [`CONTEXT.md`](./CONTEXT.md). Decisions are recorded in
 
 ## Demo
 
-<video src="./marginly-demo.mp4" controls width="720"></video>
+[Watch the demo](https://github.com/javatarz/marginly-v2/blob/main/marginly-demo.mp4)
 
 ## Running it
 
