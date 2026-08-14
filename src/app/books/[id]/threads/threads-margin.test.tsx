@@ -23,7 +23,13 @@ function linkedThread(): ThreadData {
     rootedText: "the passage this Thread is on",
     resolved: false,
     comments: [
-      { id: "comment-1", authorId: AUTHOR_ID, body: "still attached to its passage", createdAt: "2026-01-01T00:00:00.000Z" },
+      {
+        id: "comment-1",
+        authorId: AUTHOR_ID,
+        authorEmail: "annie@gmail.com",
+        body: "still attached to its passage",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
     ],
   };
 }
@@ -39,7 +45,13 @@ function unlinkedThread(rootedText: string | null = "the passage this was rooted
     rootedText,
     resolved: false,
     comments: [
-      { id: "comment-2", authorId: AUTHOR_ID, body: "the passage this was rooted on is gone", createdAt: "2026-01-02T00:00:00.000Z" },
+      {
+        id: "comment-2",
+        authorId: AUTHOR_ID,
+        authorEmail: "annie@gmail.com",
+        body: "the passage this was rooted on is gone",
+        createdAt: "2026-01-02T00:00:00.000Z",
+      },
     ],
   };
 }
@@ -115,6 +127,7 @@ describe("ThreadsMargin: an Unlinked Thread's frozen state (#34)", () => {
     expect(
       screen.getByText("the passage this was rooted on is gone"),
     ).toBeInTheDocument();
+    expect(screen.getByText("Annie")).toBeInTheDocument();
   });
 
   it("does not mark a Linked Thread's box as Unlinked", () => {

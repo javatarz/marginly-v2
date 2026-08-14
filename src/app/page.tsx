@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import { SIGN_IN_PATH } from "@/lib/auth/route-access";
 import { createBookProblemMessage } from "@/lib/books/create-book-problem";
+import { displayNameFromEmail } from "@/lib/books/display-name";
 import {
   latestUploadPerBook,
   presentDashboard,
@@ -87,7 +88,8 @@ export default async function Dashboard({
       <header className={styles.header}>
         <h1>Marginly</h1>
         <p className={styles.signedInAs}>
-          Signed in as {account?.email ?? "an account with no readable address"}.
+          Signed in as{" "}
+          {account?.email ? displayNameFromEmail(account.email) : "an account with no readable address"}.
         </p>
       </header>
 

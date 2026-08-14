@@ -54,7 +54,15 @@ const THREAD: ThreadData = {
   threadPosition: null,
   rootedText: null,
   resolved: false,
-  comments: [{ id: "c1", authorId: "author-1", body: "hi", createdAt: "2026-01-01T00:00:00.000Z" }],
+  comments: [
+    {
+      id: "c1",
+      authorId: "author-1",
+      authorEmail: "author@example.com",
+      body: "hi",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    },
+  ],
 };
 
 function Harness() {

@@ -167,13 +167,15 @@ if (linkMatch) {
   const jar = confirm.headers.getSetCookie().map((c) => c.split(";")[0]);
   check("the confirm route verifies it and sets a session", jar.length > 0, `${confirm.status}`);
 
-  // 4. The signed-in page shows the address, read from public.users under RLS.
+  // 4. The signed-in page shows the name derived from the address read out of
+  // public.users under RLS (the local part before the @, capitalised).
   const home = await fetch(`${APP_URL}/`, {
     headers: { cookie: jar.join("; ") },
     redirect: "manual",
   });
   const html = await home.text();
-  check("the signed-in page shows the address", html.includes(PERSON), `${home.status}`);
+  const displayName = PERSON.slice(0, PERSON.indexOf("@")).replace(/^./, (c) => c.toUpperCase());
+  check("the signed-in page shows the display name", html.includes(displayName), `${home.status}`);
 
   // 4a. A Book on the dashboard is reachable — the dashboard is the product's only
   // discovery route (ADR-0011), so a row with no way into its Book page is a dead end.

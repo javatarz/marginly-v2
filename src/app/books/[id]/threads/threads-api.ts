@@ -6,12 +6,19 @@ import { formatTextPosition, parseTextPosition, parseThreadStatus } from "@/lib/
 export type ThreadComment = {
   id: string;
   authorId: string;
+  authorEmail: string;
   body: string;
   createdAt: string;
 };
 
 /** The shape `version_threads`' `jsonb_build_object` actually emits, snake_case. */
-type RawComment = { id: string; author_id: string; body: string; created_at: string };
+type RawComment = {
+  id: string;
+  author_id: string;
+  author_email: string;
+  body: string;
+  created_at: string;
+};
 
 export type ThreadData = {
   threadId: string;
@@ -69,6 +76,7 @@ export async function fetchVersionThreads(
       comments: ((row.comments as RawComment[] | null) ?? []).map((comment) => ({
         id: comment.id,
         authorId: comment.author_id,
+        authorEmail: comment.author_email,
         body: comment.body,
         createdAt: comment.created_at,
       })),

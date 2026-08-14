@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 
 import { canModifyComment, canResolveThread, commentRole } from "@/lib/books/comment-role";
+import { displayNameFromEmail } from "@/lib/books/display-name";
 import { toggleSelectedThreadId } from "@/lib/reading/toggle-selected-thread";
 
 import type { ThreadsLayerState } from "./use-threads-layer";
@@ -102,7 +103,7 @@ export function ThreadsMargin({
                         : styles.commentMeta
                     }
                   >
-                    {role === "author" ? "Author" : "Reviewer"}
+                    {displayNameFromEmail(comment.authorEmail)}
                   </p>
 
                   {isEditing ? (
