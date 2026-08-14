@@ -309,8 +309,10 @@ export type Database = {
           created_at: string
           created_by: string
           resolved: boolean
+          status: string
           text_position: unknown
           thread_id: string
+          thread_position: number
         }[]
       }
     }

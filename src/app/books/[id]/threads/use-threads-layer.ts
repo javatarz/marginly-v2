@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { buildTextIndex, resolveRange, SEGMENT_TAGS, type TextIndex } from "@/lib/reading/text-index";
+import { buildTextIndex, resolvePoint, resolveRange, SEGMENT_TAGS, type TextIndex } from "@/lib/reading/text-index";
 import { layoutMargin, type MarginPosition } from "@/lib/reading/margin-layout";
 import { nextSelectedThreadId } from "@/lib/reading/next-selected-thread";
 import { mergeIntervals, type Interval } from "@/lib/reading/union-intervals";
@@ -157,9 +157,14 @@ export function useThreadsLayer({
   );
 
   // Highlights: rectangles over the text, recomputed at read time and thrown away on
-  // the next paint (ADR-0007). Every Linked Thread's range is merged into a union
-  // interval set first, so overlap and nesting leave no trace; a selected Thread draws
-  // its own range again, on top.
+  // the next paint (ADR-0007). Only a Linked Thread has a passage to shade — an
+  // Unlinked one carries a placement, not a Highlight (ADR-0006) — so both the union
+  // shading and a selected Thread's own outline draw from Linked threads alone. Every
+  // Thread still gets a margin position: an Unlinked Thread's is a single-point caret at
+  // its carried `thread_position` (`marginAnchorRect`), not a range — `resolvePoint`
+  // resolves that point even when it sits exactly at the text's own end, which a
+  // zero-width `[x, x)` range fed through `resolveRange` cannot (ADR-0014's clamp can
+  // legitimately carry a placement there).
   const redraw = useCallback(() => {
     const container = contentRef.current;
     if (!container) {
@@ -169,16 +174,18 @@ export function useThreadsLayer({
     const index = buildTextIndex(container);
     const containerRect = container.getBoundingClientRect();
 
-    const ranges: Interval[] = orderedThreads.map((thread) => thread.range);
-    setUnionRects(rectsForRanges(index, containerRect, mergeIntervals(ranges)));
+    const linkedRanges: Interval[] = orderedThreads.filter(isLinked).map((thread) => thread.range);
+    setUnionRects(rectsForRanges(index, containerRect, mergeIntervals(linkedRanges)));
 
     const selected = orderedThreads.find((thread) => thread.threadId === selectedThreadId);
-    setSelectedRects(selected ? rectsForRanges(index, containerRect, [selected.range]) : []);
+    setSelectedRects(
+      selected && isLinked(selected) ? rectsForRanges(index, containerRect, [selected.range]) : [],
+    );
 
     const tops = new Map<string, number>();
     orderedThreads.forEach((thread) => {
-      const rects = rectsForRanges(index, containerRect, [thread.range]);
-      tops.set(thread.threadId, rects[0]?.top ?? 0);
+      const rect = marginAnchorRect(index, containerRect, thread);
+      tops.set(thread.threadId, rect?.top ?? 0);
     });
     setMarginTops(tops);
   }, [contentRef, orderedThreads, selectedThreadId]);
@@ -331,9 +338,9 @@ export function useThreadsLayer({
         return;
       }
 
-      const covering = orderedThreads.filter(
-        (thread) => offset >= thread.range[0] && offset < thread.range[1],
-      );
+      const covering = orderedThreads
+        .filter(isLinked)
+        .filter((thread) => offset >= thread.range[0] && offset < thread.range[1]);
       if (covering.length === 0) {
         return;
       }
@@ -535,6 +542,45 @@ export function useThreadsLayer({
     resolveSubmitting,
     resolveError,
     submitResolve,
+  };
+}
+
+/** Narrows a Thread to its Linked shape, where `range` is never null. */
+function isLinked(thread: ThreadData): thread is ThreadData & { range: readonly [number, number] } {
+  return thread.status === "linked";
+}
+
+/**
+ * The rectangle a Thread's margin position is measured from: a Linked Thread's own
+ * Highlight (the first rect of its range, same as the shading), or an Unlinked
+ * Thread's carried placement as a caret at its `thread_position` (ADR-0014 — a
+ * placement is one character offset, never a range). Null if that offset cannot be
+ * resolved into the current text at all (an empty Version).
+ */
+function marginAnchorRect(index: TextIndex, containerRect: DOMRect, thread: ThreadData): Rect | null {
+  if (isLinked(thread)) {
+    return rectsForRanges(index, containerRect, [thread.range])[0] ?? null;
+  }
+
+  const position = resolvePoint(index, thread.threadPosition!);
+  if (!position) {
+    return null;
+  }
+
+  const range = document.createRange();
+  range.setStart(position.node, position.offset);
+  range.setEnd(position.node, position.offset);
+
+  const rect = range.getClientRects()[0];
+  if (!rect) {
+    return null;
+  }
+
+  return {
+    top: rect.top - containerRect.top,
+    left: rect.left - containerRect.left,
+    width: rect.width,
+    height: rect.height,
   };
 }
 

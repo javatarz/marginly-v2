@@ -1,7 +1,7 @@
 import { parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
 
-import { buildTextIndex, resolveRange } from "./text-index";
+import { buildTextIndex, resolvePoint, resolveRange } from "./text-index";
 
 function bodyOf(html: string) {
   const { document } = parseHTML(`<!doctype html><html><body>${html}</body></html>`);
@@ -154,6 +154,29 @@ describe("buildTextIndex", () => {
     it("returns null for a start past the end of the text", () => {
       const index = buildTextIndex(bodyOf("<p>hi</p>"));
       expect(resolveRange(index, 99, 100)).toBeNull();
+    });
+  });
+
+  describe("resolvePoint — a single-point caret position (ADR-0014's Unlinked placement)", () => {
+    it("resolves an interior offset to that character's own position", () => {
+      const body = bodyOf("<p>hello world</p>");
+      const index = buildTextIndex(body);
+      const textNode = (body as unknown as Element).querySelector("p")!.firstChild as Text;
+
+      expect(resolvePoint(index, 6)).toEqual({ node: textNode, offset: 6 });
+    });
+
+    it("resolves an offset sitting exactly at the end of the text to one past its last character", () => {
+      const body = bodyOf("<p>hi</p>");
+      const index = buildTextIndex(body);
+      const textNode = (body as unknown as Element).querySelector("p")!.firstChild as Text;
+
+      expect(resolvePoint(index, 2)).toEqual({ node: textNode, offset: 2 });
+    });
+
+    it("returns null for an index holding no text at all", () => {
+      const index = buildTextIndex(bodyOf(""));
+      expect(resolvePoint(index, 0)).toBeNull();
     });
   });
 

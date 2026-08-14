@@ -137,6 +137,29 @@ export function buildTextIndex(root: Node): TextIndex {
 }
 
 /**
+ * The DOM position of the caret at `charOffset` — the character itself when one
+ * exists there, or one past the last character when `charOffset` sits exactly at the
+ * end of the text. An Unlinked Thread's `thread_position` is a single point rather
+ * than a range (ADR-0014), and the match seam clamps a carried placement to the new
+ * text's own length (`supabase/functions/_shared/match.ts`) — landing exactly at the
+ * end is therefore a real, reachable case, not an edge case to special-case away.
+ * Null only when the index holds no text at all.
+ */
+export function resolvePoint(index: TextIndex, charOffset: number): DomPosition | null {
+  const position = index.resolveOffset(charOffset);
+  if (position) {
+    return position;
+  }
+
+  if (index.length === 0) {
+    return null;
+  }
+
+  const lastCharacter = index.resolveOffset(index.length - 1)!;
+  return { node: lastCharacter.node, offset: lastCharacter.offset + 1 };
+}
+
+/**
  * The two boundary points a `Range` needs to cover `[start, end)` of the extracted
  * text — `start`'s own position, and the position right after `end`'s last included
  * character. Null if `start` is out of bounds; a Highlight is never empty (the
@@ -153,18 +176,9 @@ export function resolveRange(
     return null;
   }
 
-  // `resolveOffset(end)` is already "the character right after the range" when one
-  // exists. Only the range reaching the very end of the text has none to ask for, so
-  // the boundary is one past the last character's own position instead.
-  const afterEnd = index.resolveOffset(end);
-  if (afterEnd) {
-    return { start: startPosition, end: afterEnd };
-  }
-
   // `startPosition` being non-null already means `index.length` is at least 1, so
-  // `index.length - 1` is always a valid offset — this can never itself be null.
-  const lastCharacter = index.resolveOffset(index.length - 1)!;
-  return { start: startPosition, end: { node: lastCharacter.node, offset: lastCharacter.offset + 1 } };
+  // `resolvePoint` can never itself return null here.
+  return { start: startPosition, end: resolvePoint(index, end)! };
 }
 
 /** Mirrors `buffer.replaceAll(/\s+/g, " ")`, keeping each collapsed space's source. */

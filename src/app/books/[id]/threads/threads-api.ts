@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/lib/database.types";
-import { parseTextPosition } from "@/lib/reading/thread-range";
+import { parseTextPosition, parseThreadStatus } from "@/lib/reading/thread-range";
 
 export type ThreadComment = {
   id: string;
@@ -17,15 +17,21 @@ export type ThreadData = {
   threadId: string;
   createdBy: string;
   createdAt: string;
-  range: readonly [number, number];
+  status: "linked" | "unlinked";
+  /** Present exactly when `status` is `"linked"` — the Highlight it draws. */
+  range: readonly [number, number] | null;
+  /** Present exactly when `status` is `"unlinked"` — the margin's placement request. */
+  threadPosition: number | null;
   resolved: boolean;
   comments: readonly ThreadComment[];
 };
 
 /**
- * The thin read side of `version_threads` (ADR-0006's shared read, this ticket's
- * narrowed shape — see the migration). No unit test: this is wiring over a Supabase
- * client, covered by tests/threads-policies.test.ts against the real function.
+ * The thin read side of `version_threads` (ADR-0006's shared read, extended by #34 to
+ * carry every Open Thread's frozen state — Linked or Unlinked, whichever it was on the
+ * Version asked for — and to cut its Comments off at that same Version). No unit test:
+ * this is wiring over a Supabase client, covered by tests/threads-policies.test.ts and
+ * tests/frozen-versions.test.ts against the real function.
  */
 export async function fetchVersionThreads(
   supabase: SupabaseClient<Database>,
@@ -41,19 +47,24 @@ export async function fetchVersionThreads(
     return [];
   }
 
-  return data.map((row) => ({
-    threadId: row.thread_id,
-    createdBy: row.created_by,
-    createdAt: row.created_at,
-    range: parseTextPosition(row.text_position as string),
-    resolved: row.resolved,
-    comments: ((row.comments as RawComment[] | null) ?? []).map((comment) => ({
-      id: comment.id,
-      authorId: comment.author_id,
-      body: comment.body,
-      createdAt: comment.created_at,
-    })),
-  }));
+  return data.map((row) => {
+    const status = parseThreadStatus(row.status);
+    return {
+      threadId: row.thread_id,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      status,
+      range: status === "linked" ? parseTextPosition(row.text_position as string) : null,
+      threadPosition: status === "unlinked" ? (row.thread_position as number) : null,
+      resolved: row.resolved,
+      comments: ((row.comments as RawComment[] | null) ?? []).map((comment) => ({
+        id: comment.id,
+        authorId: comment.author_id,
+        body: comment.body,
+        createdAt: comment.created_at,
+      })),
+    };
+  });
 }
 
 /**

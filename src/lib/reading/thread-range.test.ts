@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseTextPosition } from "./thread-range";
+import { parseTextPosition, parseThreadStatus } from "./thread-range";
 
 describe("parseTextPosition", () => {
   it("parses a canonical int4range", () => {
@@ -13,5 +13,19 @@ describe("parseTextPosition", () => {
 
   it("throws on a non-canonical form", () => {
     expect(() => parseTextPosition("empty")).toThrow();
+  });
+});
+
+describe("parseThreadStatus", () => {
+  it("accepts linked", () => {
+    expect(parseThreadStatus("linked")).toBe("linked");
+  });
+
+  it("accepts unlinked", () => {
+    expect(parseThreadStatus("unlinked")).toBe("unlinked");
+  });
+
+  it("throws on anything else", () => {
+    expect(() => parseThreadStatus("resolved")).toThrow();
   });
 });

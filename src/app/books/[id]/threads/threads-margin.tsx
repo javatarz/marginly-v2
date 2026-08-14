@@ -50,6 +50,9 @@ export function ThreadsMargin({
             onClick={() => state.selectThread(toggleSelectedThreadId(state.selectedThreadId, thread.threadId))}
           >
             {thread.resolved ? <p className={styles.resolvedBadge}>Resolved</p> : null}
+            {thread.status === "unlinked" ? (
+              <p className={styles.unlinkedBadge}>Unlinked</p>
+            ) : null}
 
             {thread.comments.map((comment) => {
               const role = commentRole({ bookAuthorId, commentAuthorId: comment.authorId });
