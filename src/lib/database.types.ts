@@ -271,6 +271,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_comment: { Args: { body: string; thread: string }; Returns: string }
       can_read_book: { Args: { book: string }; Returns: boolean }
       grant_access: {
         Args: { book: string; email: string }

@@ -40,6 +40,8 @@ type SwitchState = { kind: "idle" } | { kind: "loading" } | { kind: "error" };
 export function Reader({
   bookId,
   bookName,
+  bookAuthorId,
+  currentUserId,
   isAuthor,
   versions,
   latestVersionNumber,
@@ -51,6 +53,8 @@ export function Reader({
 }: {
   bookId: string;
   bookName: string;
+  bookAuthorId: string;
+  currentUserId: string;
   isAuthor: boolean;
   versions: readonly VersionSummary[];
   latestVersionNumber: number;
@@ -221,7 +225,7 @@ export function Reader({
             <ThreadsOverlay state={threadsLayer} />
           </div>
 
-          <ThreadsMargin state={threadsLayer} />
+          <ThreadsMargin state={threadsLayer} bookAuthorId={bookAuthorId} currentUserId={currentUserId} />
         </div>
       </main>
     </>

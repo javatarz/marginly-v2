@@ -85,3 +85,60 @@ export async function startThread(
 
   return { threadId: data };
 }
+
+/**
+ * Adding a Comment to a Thread that already exists (#30, `add_comment`). No unit
+ * test — thin wiring over `security invoker` RLS and triggers, covered by
+ * tests/comments-policies.test.ts.
+ */
+export async function addComment(
+  supabase: SupabaseClient<Database>,
+  args: { threadId: string; body: string },
+): Promise<{ commentId: string } | { error: string }> {
+  const { data, error } = await supabase.rpc("add_comment", {
+    thread: args.threadId,
+    body: args.body,
+  });
+
+  if (error || !data) {
+    return { error: error?.message ?? "Could not add the Comment." };
+  }
+
+  return { commentId: data };
+}
+
+/**
+ * Editing a Comment's own body (#30) — a plain column-scoped update, gated entirely by
+ * the migration's RLS policy and its latest-Version trigger. No unit test — thin
+ * wiring, covered by tests/comments-policies.test.ts.
+ */
+export async function editComment(
+  supabase: SupabaseClient<Database>,
+  args: { commentId: string; body: string },
+): Promise<{ error: string } | undefined> {
+  const { error } = await supabase.from("comments").update({ body: args.body }).eq("id", args.commentId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return undefined;
+}
+
+/**
+ * Hard-deleting a Comment (#30) — gated by RLS and the latest-Version trigger; deleting
+ * the last Comment in a Thread cascades to the Thread itself, entirely in the
+ * database. No unit test — thin wiring, covered by tests/comments-policies.test.ts.
+ */
+export async function deleteComment(
+  supabase: SupabaseClient<Database>,
+  args: { commentId: string },
+): Promise<{ error: string } | undefined> {
+  const { error } = await supabase.from("comments").delete().eq("id", args.commentId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return undefined;
+}

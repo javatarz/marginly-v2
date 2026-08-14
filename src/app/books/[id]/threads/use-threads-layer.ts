@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { buildTextIndex, resolveRange, SEGMENT_TAGS, type TextIndex } from "@/lib/reading/text-index";
 import { layoutMargin, type MarginPosition } from "@/lib/reading/margin-layout";
+import { nextSelectedThreadId } from "@/lib/reading/next-selected-thread";
 import { mergeIntervals, type Interval } from "@/lib/reading/union-intervals";
 import { createClient } from "@/lib/supabase/browser";
 
-import { fetchVersionThreads, startThread, type ThreadData } from "./threads-api";
+import { addComment, deleteComment, editComment, fetchVersionThreads, startThread, type ThreadData } from "./threads-api";
 
 export type Rect = { top: number; left: number; width: number; height: number };
 
@@ -35,6 +36,24 @@ export type ThreadsLayerState = {
   submitting: boolean;
   cancelComposer: () => void;
   submitComment: () => void;
+  isLatest: boolean;
+  replyBody: string;
+  setReplyBody: (body: string) => void;
+  replyError: string | null;
+  replySubmitting: boolean;
+  submitReply: () => void;
+  editingCommentId: string | null;
+  editingBody: string;
+  setEditingBody: (body: string) => void;
+  editError: string | null;
+  editSubmitting: boolean;
+  startEditingComment: (commentId: string, currentBody: string) => void;
+  cancelEditingComment: () => void;
+  submitEditComment: () => void;
+  deletingCommentId: string | null;
+  deleteErrorCommentId: string | null;
+  deleteError: string | null;
+  removeComment: (commentId: string) => void;
 };
 
 /**
@@ -65,6 +84,19 @@ export function useThreadsLayer({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const [replyBody, setReplyBody] = useState("");
+  const [replyError, setReplyError] = useState<string | null>(null);
+  const [replySubmitting, setReplySubmitting] = useState(false);
+
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingBody, setEditingBody] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+  const [deleteErrorCommentId, setDeleteErrorCommentId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const [unionRects, setUnionRects] = useState<readonly Rect[]>([]);
   const [selectedRects, setSelectedRects] = useState<readonly Rect[]>([]);
   const [marginTops, setMarginTops] = useState<ReadonlyMap<string, number>>(new Map());
@@ -86,6 +118,13 @@ export function useThreadsLayer({
         setPendingSelection(null);
         setComposerOpen(false);
         setComposerBody("");
+        setReplyBody("");
+        setReplyError(null);
+        setEditingCommentId(null);
+        setEditingBody("");
+        setEditError(null);
+        setDeleteErrorCommentId(null);
+        setDeleteError(null);
       }
     });
     return () => {
@@ -316,6 +355,94 @@ export function useThreadsLayer({
     });
   }, [pendingSelection, composerBody, supabase, bookId, versionNumber]);
 
+  // Replying to a Thread that already exists — the same shape as `submitComment`
+  // above, minus the Highlight: `add_comment` computes the Thread's Book and the
+  // Book's own latest Version itself (this ticket's migration), so there is nothing
+  // here for the client to get wrong by being stale.
+  const submitReply = useCallback(() => {
+    if (!selectedThreadId || replyBody.trim().length === 0) {
+      return;
+    }
+
+    setReplySubmitting(true);
+    setReplyError(null);
+
+    addComment(supabase, { threadId: selectedThreadId, body: replyBody.trim() }).then((result) => {
+      setReplySubmitting(false);
+
+      if ("error" in result) {
+        setReplyError(result.error);
+        return;
+      }
+
+      setReplyBody("");
+      fetchVersionThreads(supabase, bookId, versionNumber).then(setThreads);
+    });
+  }, [selectedThreadId, replyBody, supabase, bookId, versionNumber]);
+
+  const startEditingComment = useCallback((commentId: string, currentBody: string) => {
+    setEditingCommentId(commentId);
+    setEditingBody(currentBody);
+    setEditError(null);
+  }, []);
+
+  const cancelEditingComment = useCallback(() => {
+    setEditingCommentId(null);
+    setEditingBody("");
+    setEditError(null);
+  }, []);
+
+  const submitEditComment = useCallback(() => {
+    if (!editingCommentId || editingBody.trim().length === 0) {
+      return;
+    }
+
+    setEditSubmitting(true);
+    setEditError(null);
+
+    editComment(supabase, { commentId: editingCommentId, body: editingBody.trim() }).then((result) => {
+      setEditSubmitting(false);
+
+      if (result?.error) {
+        setEditError(result.error);
+        return;
+      }
+
+      setEditingCommentId(null);
+      setEditingBody("");
+      fetchVersionThreads(supabase, bookId, versionNumber).then(setThreads);
+    });
+  }, [editingCommentId, editingBody, supabase, bookId, versionNumber]);
+
+  // Deleting the last Comment in a Thread deletes the Thread itself (ADR-0006), entirely
+  // in the database — refetching the Version's Threads afterward is what picks that up
+  // here, the same as any other mutation in this hook. A refused delete (another
+  // person's Comment, or a Version that is no longer latest) surfaces the same way a
+  // refused edit or reply does, rather than failing silently.
+  const removeComment = useCallback(
+    (commentId: string) => {
+      setDeletingCommentId(commentId);
+      setDeleteErrorCommentId(null);
+      setDeleteError(null);
+
+      deleteComment(supabase, { commentId }).then((result) => {
+        setDeletingCommentId(null);
+
+        if (result?.error) {
+          setDeleteErrorCommentId(commentId);
+          setDeleteError(result.error);
+          return;
+        }
+
+        fetchVersionThreads(supabase, bookId, versionNumber).then((data) => {
+          setThreads(data);
+          setSelectedThreadId((current) => nextSelectedThreadId(current, data));
+        });
+      });
+    },
+    [supabase, bookId, versionNumber],
+  );
+
   return {
     orderedThreads,
     selectedThreadId,
@@ -336,6 +463,24 @@ export function useThreadsLayer({
       setComposerBody("");
     },
     submitComment,
+    isLatest,
+    replyBody,
+    setReplyBody,
+    replyError,
+    replySubmitting,
+    submitReply,
+    editingCommentId,
+    editingBody,
+    setEditingBody,
+    editError,
+    editSubmitting,
+    startEditingComment,
+    cancelEditingComment,
+    submitEditComment,
+    deletingCommentId,
+    deleteErrorCommentId,
+    deleteError,
+    removeComment,
   };
 }
 

@@ -51,10 +51,16 @@ beforeAll(async () => {
     select '${READY_BOOK}', u.id from public.users u where u.email = '${REVIEWER}'
     on conflict (book_id, reviewer_id) do nothing;
 
+    -- enforce_version_numbering requires a Version's own number to equal
+    -- latest_version_number at the moment it is inserted (ADR-0009's bump-then-insert
+    -- order), so seeding two Version rows means bumping the counter between them rather
+    -- than setting it to 2 up front — otherwise the first insert (Version 1, against an
+    -- already-2 counter) is refused by the very trigger this fixture exists to sit under.
     insert into public.books (id, author_id, name, latest_version_number)
     select '${TWO_VERSION_BOOK}', u.id, 'Two Versions', 1
     from public.users u where u.email = '${AUTHOR}'
-    on conflict (id) do update set author_id = excluded.author_id, name = excluded.name;
+    on conflict (id) do update set author_id = excluded.author_id, name = excluded.name,
+      latest_version_number = 1;
 
     insert into public.versions (book_id, version_number, hash)
     select '${TWO_VERSION_BOOK}', 1, 'thread-test-two-v1'

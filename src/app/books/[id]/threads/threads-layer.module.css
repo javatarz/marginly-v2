@@ -125,9 +125,40 @@
 
 .comment {
   margin: 0 0 var(--space-2);
-  line-height: var(--leading-base);
 }
 
 .comment:last-child {
   margin-bottom: 0;
+}
+
+.commentMeta {
+  margin: 0 0 var(--space-1);
+  color: var(--color-ink-muted);
+  font-size: var(--font-size-sm);
+}
+
+.commentBody {
+  margin: 0;
+  line-height: var(--leading-base);
+}
+
+.commentActions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.commentAction {
+  padding: 0;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-ink-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.commentAction:disabled {
+  opacity: 0.5;
+  cursor: default;
 }

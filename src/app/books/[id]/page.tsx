@@ -158,6 +158,8 @@ export default async function BookPage({
       key={book.id}
       bookId={book.id}
       bookName={book.name}
+      bookAuthorId={book.author_id}
+      currentUserId={user.id}
       isAuthor={isAuthor}
       versions={(versions ?? []).map((version) => ({
         versionNumber: version.version_number,
