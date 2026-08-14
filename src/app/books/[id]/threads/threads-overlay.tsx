@@ -53,6 +53,9 @@ export function ThreadsOverlay({ state }: { state: ThreadsLayerState }) {
             type="button"
             className={styles.startThreadButton}
             style={anchorStyle(pendingSelection.anchorTop, pendingSelection.anchorLeft)}
+            // Without this, mousedown's native selection-collapse fires selectionchange
+            // before click, nulling pendingSelection and unmounting this button (#29).
+            onMouseDown={(event) => event.preventDefault()}
             onClick={state.openComposer}
           >
             Start a Thread

@@ -240,7 +240,12 @@ export function useThreadsLayer({
   // Starting a Thread: a plain text drag ending in one affordance at the end of the
   // selection (ADR-0007) — never a per-element control.
   useEffect(() => {
-    if (!isLatest) {
+    // Once the composer is open, its own autoFocus textarea deselects the
+    // page's text (a real browser clears window.getSelection() when focus
+    // moves into a form control) and fires this same selectionchange — left
+    // unguarded, that reads as "the user abandoned the selection" and nulls
+    // pendingSelection out from under the composer that just opened (#29).
+    if (!isLatest || composerOpen) {
       return;
     }
 
@@ -286,7 +291,7 @@ export function useThreadsLayer({
 
     document.addEventListener("selectionchange", handleSelectionChange);
     return () => document.removeEventListener("selectionchange", handleSelectionChange);
-  }, [contentRef, isLatest]);
+  }, [contentRef, isLatest, composerOpen]);
 
   // Clicking a shared Highlight cycles which Thread is selected (ADR-0007). A plain
   // click reports a collapsed selection; a drag's mouseup does not, and opens the
