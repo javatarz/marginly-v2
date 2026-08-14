@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { buildTextIndex, resolvePoint, resolveRange, SEGMENT_TAGS, type TextIndex } from "@/lib/reading/text-index";
+import {
+  buildTextIndex,
+  resolvePoint,
+  resolveRange,
+  SEGMENT_TAGS,
+  type DomPosition,
+  type TextIndex,
+} from "@/lib/reading/text-index";
 import { layoutMargin, type MarginPosition } from "@/lib/reading/margin-layout";
 import { nextSelectedThreadId } from "@/lib/reading/next-selected-thread";
+import { sentenceRange } from "@/lib/reading/sentence-at";
 import { mergeIntervals, type Interval } from "@/lib/reading/union-intervals";
 import { createClient } from "@/lib/supabase/browser";
 
@@ -11,8 +19,10 @@ import {
   deleteComment,
   editComment,
   fetchVersionThreads,
+  linkThread,
   resolveThread,
   startThread,
+  unlinkThread,
   type ThreadData,
 } from "./threads-api";
 
@@ -67,6 +77,12 @@ export type ThreadsLayerState = {
   resolveSubmitting: boolean;
   resolveError: string | null;
   submitResolve: (threadId: string) => void;
+  draggingThreadId: string | null;
+  beginThreadDrag: (
+    threadId: string,
+    event: { preventDefault: () => void; clientX: number; clientY: number },
+  ) => void;
+  linkError: string | null;
 };
 
 /**
@@ -114,6 +130,9 @@ export function useThreadsLayer({
   const [resolveSubmitting, setResolveSubmitting] = useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
 
+  const [draggingThreadId, setDraggingThreadId] = useState<string | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
+
   const [unionRects, setUnionRects] = useState<readonly Rect[]>([]);
   const [selectedRects, setSelectedRects] = useState<readonly Rect[]>([]);
   const [marginTops, setMarginTops] = useState<ReadonlyMap<string, number>>(new Map());
@@ -121,6 +140,7 @@ export function useThreadsLayer({
 
   const marginBoxRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const marginHeightObserverRef = useRef<ResizeObserver | null>(null);
+  const dragOriginRef = useRef<{ x: number; y: number } | null>(null);
 
   // This Version's discussion (the shared read, `version_threads`). A pending
   // selection or an open composer belongs to whichever Version was on screen when the
@@ -144,6 +164,8 @@ export function useThreadsLayer({
         setDeleteError(null);
         setResolveNote("");
         setResolveError(null);
+        setDraggingThreadId(null);
+        setLinkError(null);
       }
     });
     return () => {
@@ -354,6 +376,145 @@ export function useThreadsLayer({
     return () => container.removeEventListener("click", handleClick);
   }, [contentRef, orderedThreads, selectedThreadId]);
 
+  // Link, move and unlink (#35, ADR-0007/ADR-0014): a Thread box's own drag handle
+  // starts this, `event.preventDefault()` there keeping any live selection intact the
+  // same way Start a Thread's own button already does. Released over the text column
+  // it links or moves — the reader's own selection if `pendingSelection` holds one,
+  // the sentence under the cursor otherwise; released anywhere else it writes the
+  // nearest character to the drop's height and unlinks. Re-registered fresh on every
+  // drag so the handler always closes over the `pendingSelection` current at drop time.
+  //
+  // A plain click on the handle is a mousedown and a mouseup at the same point with no
+  // movement between them — nothing here distinguishes that from a real drag unless it
+  // tracks movement itself, and without that distinction a bare click would read as "not
+  // over text" (the handle sits outside `contentRef`, in the margin) and unlink whatever
+  // Thread it belongs to. `moved` gates the drop on the pointer having actually travelled
+  // past a small threshold from where the drag began; short of that, mouseup cancels the
+  // drag with no write at all, the same as if it had never started. Escape and the
+  // window losing focus cancel it the same way, so a drag released outside the window
+  // (no mouseup ever reaches `document`) cannot leave a Thread stuck mid-drag.
+  useEffect(() => {
+    if (!draggingThreadId) {
+      return;
+    }
+
+    const threadId = draggingThreadId;
+    const origin = dragOriginRef.current;
+    const DRAG_THRESHOLD_PX = 4;
+    let moved = false;
+
+    function handleMouseMove(event: MouseEvent): void {
+      if (!origin) {
+        moved = true;
+        return;
+      }
+      moved ||= Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > DRAG_THRESHOLD_PX;
+    }
+
+    function handleCancel(): void {
+      setDraggingThreadId(null);
+    }
+
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape") {
+        handleCancel();
+      }
+    }
+
+    function handleMouseUp(event: MouseEvent): void {
+      setDraggingThreadId(null);
+
+      if (!moved) {
+        // A plain click on the handle, not a drag — nothing to commit.
+        return;
+      }
+
+      const container = contentRef.current;
+      if (!container) {
+        return;
+      }
+
+      const containerRect = container.getBoundingClientRect();
+      const overText =
+        event.clientX >= containerRect.left &&
+        event.clientX <= containerRect.right &&
+        event.clientY >= containerRect.top &&
+        event.clientY <= containerRect.bottom;
+
+      if (overText) {
+        const range = pendingSelection
+          ? ([pendingSelection.start, pendingSelection.end] as const)
+          : sentenceRangeAt(container, event.clientX, event.clientY);
+
+        if (!range) {
+          setLinkError("Could not find any text there to link to.");
+          return;
+        }
+
+        setLinkError(null);
+        linkThread(supabase, {
+          threadId,
+          bookId,
+          versionNumber,
+          start: range[0],
+          end: range[1],
+        }).then((result) => {
+          if (result?.error) {
+            setLinkError(result.error);
+            return;
+          }
+
+          window.getSelection()?.removeAllRanges();
+          setPendingSelection(null);
+          setSelectedThreadId(threadId);
+          fetchVersionThreads(supabase, bookId, versionNumber).then(setThreads);
+        });
+        return;
+      }
+
+      const placement = nearestOffsetAtHeight(container, event.clientY);
+      if (placement === null) {
+        setLinkError("Could not place the Thread there.");
+        return;
+      }
+
+      setLinkError(null);
+      unlinkThread(supabase, { threadId, placement }).then((result) => {
+        if (result?.error) {
+          setLinkError(result.error);
+          return;
+        }
+
+        setSelectedThreadId(threadId);
+        fetchVersionThreads(supabase, bookId, versionNumber).then(setThreads);
+      });
+    }
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("blur", handleCancel);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("blur", handleCancel);
+    };
+  }, [draggingThreadId, pendingSelection, contentRef, supabase, bookId, versionNumber]);
+
+  const beginThreadDrag = useCallback(
+    (threadId: string, event: { preventDefault: () => void; clientX: number; clientY: number }) => {
+      event.preventDefault();
+      if (!isLatest) {
+        return;
+      }
+      dragOriginRef.current = { x: event.clientX, y: event.clientY };
+      setLinkError(null);
+      setDraggingThreadId(threadId);
+    },
+    [isLatest],
+  );
+
   const submitComment = useCallback(() => {
     if (!pendingSelection || composerBody.trim().length === 0) {
       return;
@@ -542,6 +703,9 @@ export function useThreadsLayer({
     resolveSubmitting,
     resolveError,
     submitResolve,
+    draggingThreadId,
+    beginThreadDrag,
+    linkError,
   };
 }
 
@@ -615,34 +779,85 @@ function rectsForRanges(
 }
 
 /** `caretPositionFromPoint` where available, `caretRangeFromPoint` otherwise — both
- * report a real DOM position for a click, never something to be unit tested against. */
-function characterOffsetAt(container: HTMLElement, x: number, y: number): number | null {
+ * report a real DOM position for a point, never something to be unit tested against. */
+function domPositionAt(x: number, y: number): DomPosition | null {
   const documentWithCaretApi = document as Document & {
     caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
     caretRangeFromPoint?: (x: number, y: number) => Range | null;
   };
 
-  const position = documentWithCaretApi.caretPositionFromPoint
-    ? documentWithCaretApi.caretPositionFromPoint(x, y)
-    : null;
+  const position = documentWithCaretApi.caretPositionFromPoint?.(x, y) ?? null;
   if (position) {
-    return buildTextIndex(container).offsetOf(position.offsetNode, position.offset);
+    return { node: position.offsetNode, offset: position.offset };
   }
 
   const range = documentWithCaretApi.caretRangeFromPoint?.(x, y) ?? null;
-  if (range) {
-    return buildTextIndex(container).offsetOf(range.startContainer, range.startOffset);
-  }
-
-  return null;
+  return range ? { node: range.startContainer, offset: range.startOffset } : null;
 }
 
-/** The nearest ancestor segment element's own text (ADR-0004's other matching input). */
-function paragraphTextAround(node: Node): string {
+function characterOffsetAt(container: HTMLElement, x: number, y: number): number | null {
+  const position = domPositionAt(x, y);
+  return position ? buildTextIndex(container).offsetOf(position.node, position.offset) : null;
+}
+
+/**
+ * "The sentence under the cursor" (ADR-0007/ADR-0014's re-linking gesture), as a global
+ * `[start, end)` into `container`'s own extracted text: find the segment the drop point
+ * lands in, find the sentence within that segment's own local text (`sentenceRange`,
+ * pure), then translate that local boundary back into the container's global offsets
+ * via the segment's own global starting offset — local and global offsets advance in
+ * step within one segment, since nothing collapses differently at that boundary. Null
+ * wherever a step has nothing to resolve: no caret position at that point, the point is
+ * outside any segment, or the segment holds no text at all.
+ */
+function sentenceRangeAt(container: HTMLElement, x: number, y: number): readonly [number, number] | null {
+  const position = domPositionAt(x, y);
+  if (!position) {
+    return null;
+  }
+
+  const segment = segmentElementAround(position.node);
+  if (!segment) {
+    return null;
+  }
+
+  const localIndex = buildTextIndex(segment);
+  const localOffset = localIndex.offsetOf(position.node, position.offset);
+  if (localOffset === null || localIndex.length === 0) {
+    return null;
+  }
+
+  const segmentFirstChar = localIndex.resolveOffset(0)!;
+  const segmentStart = buildTextIndex(container).offsetOf(segmentFirstChar.node, segmentFirstChar.offset);
+  if (segmentStart === null) {
+    return null;
+  }
+
+  const [localStart, localEnd] = sentenceRange(localIndex.text, localOffset);
+  return [segmentStart + localStart, segmentStart + localEnd];
+}
+
+/** The character nearest a margin drop's own height (ADR-0014): no snapping to a line
+ * or a paragraph start, just whichever character the browser's own caret API resolves
+ * there, hit-tested from just inside the text column's left edge. */
+function nearestOffsetAtHeight(container: HTMLElement, y: number): number | null {
+  const containerRect = container.getBoundingClientRect();
+  return characterOffsetAt(container, containerRect.left + 1, y);
+}
+
+/** The nearest ancestor segment element itself — `paragraphTextAround` below wants its
+ * text, `sentenceRangeAt` above wants the element to build a local index from. */
+function segmentElementAround(node: Node): Element | null {
   let element: Element | null = node.nodeType === 1 ? (node as Element) : node.parentElement;
   while (element && !SEGMENT_TAGS.has(element.localName)) {
     element = element.parentElement;
   }
+  return element;
+}
+
+/** The nearest ancestor segment element's own text (ADR-0004's other matching input). */
+function paragraphTextAround(node: Node): string {
+  const element = segmentElementAround(node);
   return element ? buildTextIndex(element).text : "";
 }
 

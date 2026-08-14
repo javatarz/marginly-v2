@@ -181,9 +181,9 @@ export type Database = {
           created_by: string
           created_version_number: number
           id: string
-          paragraph_text: string
+          paragraph_text: string | null
           resolved_version_number: number | null
-          selected_text: string
+          selected_text: string | null
         }
         Insert: {
           book_id: string
@@ -191,9 +191,9 @@ export type Database = {
           created_by: string
           created_version_number: number
           id?: string
-          paragraph_text: string
+          paragraph_text?: string | null
           resolved_version_number?: number | null
-          selected_text: string
+          selected_text?: string | null
         }
         Update: {
           book_id?: string
@@ -201,9 +201,9 @@ export type Database = {
           created_by?: string
           created_version_number?: number
           id?: string
-          paragraph_text?: string
+          paragraph_text?: string | null
           resolved_version_number?: number | null
-          selected_text?: string
+          selected_text?: string | null
         }
         Relationships: [
           {
@@ -302,6 +302,10 @@ export type Database = {
         }
         Returns: string
       }
+      unlink_thread: {
+        Args: { placement: number; thread: string }
+        Returns: undefined
+      }
       version_threads: {
         Args: { book: string; version_number: number }
         Returns: {
@@ -309,6 +313,7 @@ export type Database = {
           created_at: string
           created_by: string
           resolved: boolean
+          rooted_text: string
           status: string
           text_position: unknown
           thread_id: string

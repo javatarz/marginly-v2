@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/lib/database.types";
-import { parseTextPosition, parseThreadStatus } from "@/lib/reading/thread-range";
+import { formatTextPosition, parseTextPosition, parseThreadStatus } from "@/lib/reading/thread-range";
 
 export type ThreadComment = {
   id: string;
@@ -22,6 +22,14 @@ export type ThreadData = {
   range: readonly [number, number] | null;
   /** Present exactly when `status` is `"unlinked"` — the margin's placement request. */
   threadPosition: number | null;
+  /**
+   * The passage this Thread was rooted on (ADR-0014's "an Unlinked Thread shows the
+   * text it kept"), null exactly when nobody has ever selected any text for it — never
+   * true for a real Thread — or when a reader has deliberately Unlinked it and
+   * discarded that text (#35). Carried on a Linked Thread too, but nothing displays it
+   * there: its Highlight already shows the same passage in place.
+   */
+  rootedText: string | null;
   resolved: boolean;
   comments: readonly ThreadComment[];
 };
@@ -56,6 +64,7 @@ export async function fetchVersionThreads(
       status,
       range: status === "linked" ? parseTextPosition(row.text_position as string) : null,
       threadPosition: status === "unlinked" ? (row.thread_position as number) : null,
+      rootedText: row.rooted_text,
       resolved: row.resolved,
       comments: ((row.comments as RawComment[] | null) ?? []).map((comment) => ({
         id: comment.id,
@@ -132,6 +141,63 @@ export async function resolveThread(
   const { error } = await supabase.rpc("resolve_thread", {
     thread: args.threadId,
     note: args.note ?? undefined,
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return undefined;
+}
+
+/**
+ * Linking or moving a Thread (#35, `link_thread`'s grant+policy on `thread_versions` —
+ * see 20260814120000_link_move_and_unlink_a_thread.sql): a drag released over text,
+ * whether the Thread was previously Unlinked (a link) or already Linked somewhere else
+ * (a move). Single-table, single-row — same shape as `editComment`/`deleteComment`
+ * below, so no RPC. `thread_position` is written explicitly as null: leaving it out
+ * would keep a stale placement from before the Thread was linked, which the
+ * `thread_versions` check constraint (`(status = 'unlinked') = (thread_position is not
+ * null)`) then refuses. No unit test — thin wiring, covered by
+ * tests/link-move-unlink-policies.test.ts.
+ */
+export async function linkThread(
+  supabase: SupabaseClient<Database>,
+  args: { threadId: string; bookId: string; versionNumber: number; start: number; end: number },
+): Promise<{ error: string } | undefined> {
+  const { error } = await supabase
+    .from("thread_versions")
+    .update({
+      status: "linked",
+      text_position: formatTextPosition(args.start, args.end),
+      thread_position: null,
+    })
+    .eq("thread_id", args.threadId)
+    .eq("book_id", args.bookId)
+    .eq("version_number", args.versionNumber);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return undefined;
+}
+
+/**
+ * Unlinking a Thread (#35, `unlink_thread`) — a drag released in the margin. One RPC,
+ * because whether it also discards the Thread's matching text depends on whether it was
+ * Linked a moment ago, and that decision plus both writes have to land together or not
+ * at all (see the migration's own comment on `unlink_thread`). No unit test — thin
+ * wiring over a `security invoker` function, covered by
+ * tests/link-move-unlink-policies.test.ts.
+ */
+export async function unlinkThread(
+  supabase: SupabaseClient<Database>,
+  args: { threadId: string; placement: number },
+): Promise<{ error: string } | undefined> {
+  const { error } = await supabase.rpc("unlink_thread", {
+    thread: args.threadId,
+    placement: args.placement,
   });
 
   if (error) {

@@ -38,20 +38,50 @@ export function ThreadsMargin({
 
   return (
     <div className={styles.margin}>
+      {state.linkError ? <p className={styles.composerError}>{state.linkError}</p> : null}
+
       {state.orderedThreads.map((thread) => {
         const selected = thread.threadId === state.selectedThreadId;
+        const dragging = thread.threadId === state.draggingThreadId;
 
         return (
           <div
             key={thread.threadId}
             ref={(el) => state.registerMarginBox(thread.threadId, el)}
-            className={selected ? `${styles.threadBox} ${styles.threadBoxSelected}` : styles.threadBox}
+            className={[
+              styles.threadBox,
+              selected ? styles.threadBoxSelected : "",
+              dragging ? styles.threadBoxDragging : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
             style={topStyle(marginTopById.get(thread.threadId) ?? 0)}
             onClick={() => state.selectThread(toggleSelectedThreadId(state.selectedThreadId, thread.threadId))}
           >
+            {state.isLatest ? (
+              <button
+                type="button"
+                className={styles.dragHandle}
+                title="Drag onto text to link or move it; drag into the margin to unlink it"
+                onMouseDown={(event) => {
+                  event.stopPropagation();
+                  state.beginThreadDrag(thread.threadId, event);
+                }}
+                // Stops a plain click on the handle from bubbling to the box's own
+                // onClick and toggling selection — mousedown's own stopPropagation
+                // above only stops the mousedown, not the click that follows it.
+                onClick={(event) => event.stopPropagation()}
+              >
+                ⠿
+              </button>
+            ) : null}
+
             {thread.resolved ? <p className={styles.resolvedBadge}>Resolved</p> : null}
             {thread.status === "unlinked" ? (
               <p className={styles.unlinkedBadge}>Unlinked</p>
+            ) : null}
+            {thread.status === "unlinked" && thread.rootedText ? (
+              <p className={styles.rootedText}>“{thread.rootedText}”</p>
             ) : null}
 
             {thread.comments.map((comment) => {

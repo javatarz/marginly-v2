@@ -12,6 +12,12 @@ export function parseTextPosition(range: string): readonly [number, number] {
   return [Number(match[1]), Number(match[2])];
 }
 
+/** The inverse of `parseTextPosition` — the canonical `int4range` literal PostgREST
+ * accepts for a `text_position` write (#35's `linkThread`). */
+export function formatTextPosition(start: number, end: number): string {
+  return `[${start},${end})`;
+}
+
 export type ThreadStatus = "linked" | "unlinked";
 
 /**

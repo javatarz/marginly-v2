@@ -70,3 +70,23 @@ Deno.test("several rows map independently, in order", () => {
 Deno.test("no rows produces no Open Threads", () => {
   assertEquals(toOpenThreads([]), []);
 });
+
+Deno.test("a deliberately Unlinked row carries no matching text (#35)", () => {
+  const [thread] = toOpenThreads([
+    {
+      thread_id: "t3",
+      selected_text: null,
+      paragraph_text: null,
+      status: "unlinked",
+      text_position_start: null,
+      text_position_end: null,
+      thread_position: 4,
+    },
+  ]);
+
+  assertEquals(thread, {
+    id: "t3",
+    text: null,
+    previous: { status: "unlinked", threadPosition: 4 },
+  });
+});

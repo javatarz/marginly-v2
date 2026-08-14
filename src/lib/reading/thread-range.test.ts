@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseTextPosition, parseThreadStatus } from "./thread-range";
+import { formatTextPosition, parseTextPosition, parseThreadStatus } from "./thread-range";
 
 describe("parseTextPosition", () => {
   it("parses a canonical int4range", () => {
@@ -13,6 +13,13 @@ describe("parseTextPosition", () => {
 
   it("throws on a non-canonical form", () => {
     expect(() => parseTextPosition("empty")).toThrow();
+  });
+});
+
+describe("formatTextPosition", () => {
+  it("formats the same canonical form parseTextPosition parses", () => {
+    expect(formatTextPosition(0, 5)).toBe("[0,5)");
+    expect(parseTextPosition(formatTextPosition(120, 340))).toEqual([120, 340]);
   });
 });
 
